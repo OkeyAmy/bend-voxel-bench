@@ -33,19 +33,37 @@ local function export(f)
   end end end
 end
 
+-- With several emerge threads, a block whose mapchunk another thread is already
+-- generating comes back EMERGE_CANCELLED. Re-emerge the area until a pass has no
+-- cancelled block (generated blocks return from memory), then stop the clock.
+local MAX_PASSES = 20
+
 core.after(0, function()
-  local errors = 0
+  local errors, cancelled, passes = 0, 0, 0
   local t0 = core.get_us_time()
-  core.emerge_area(P1, P2, function(_, action, remaining)
-    if action == core.EMERGE_ERRORED or action == core.EMERGE_CANCELLED then
-      errors = errors + 1
-    end
-    if remaining > 0 then return end
-    local t1 = core.get_us_time()
-    local f = assert(io.open(OUT, "w"))
-    f:write(string.format("emerge_us %d errors %d\n", t1 - t0, errors))
-    export(f)
-    f:close()
-    core.request_shutdown("bench_probe done", false, 0)
-  end)
+  local function pass()
+    passes = passes + 1
+    local cancelled_now = 0
+    core.emerge_area(P1, P2, function(_, action, remaining)
+      if action == core.EMERGE_ERRORED then
+        errors = errors + 1
+      elseif action == core.EMERGE_CANCELLED then
+        cancelled_now = cancelled_now + 1
+      end
+      if remaining > 0 then return end
+      cancelled = cancelled + cancelled_now
+      if cancelled_now > 0 and errors == 0 and passes < MAX_PASSES then
+        pass()
+        return
+      end
+      if cancelled_now > 0 then errors = errors + cancelled_now end
+      local t1 = core.get_us_time()
+      local f = assert(io.open(OUT, "w"))
+      f:write(string.format("emerge_us %d errors %d cancelled %d passes %d\n", t1 - t0, errors, cancelled, passes))
+      export(f)
+      f:close()
+      core.request_shutdown("bench_probe done", false, 0)
+    end)
+  end
+  pass()
 end)

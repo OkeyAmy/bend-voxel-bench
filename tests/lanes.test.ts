@@ -23,6 +23,23 @@ test("parseChunkTimes sums stages and flags mapchunks outside the area", () => {
 });
 
 test("parseProbeHeader", () => {
-  assert.deepEqual(parseProbeHeader("emerge_us 812345 errors 0\n-32 -112 -32 80 0"), { emergeUs: 812345, errors: 0 });
+  assert.deepEqual(parseProbeHeader("emerge_us 812345 errors 0 cancelled 399 passes 2\n-32 -112 -32 80 0"),
+    { emergeUs: 812345, errors: 0, cancelled: 399, passes: 2 });
+  assert.throws(() => parseProbeHeader("emerge_us 812345 errors 0\n"), /header/);
   assert.throws(() => parseProbeHeader("-32 -112 -32"), /header/);
+});
+
+import { renderConf, mapMetaSeed } from "../harness/lanes/luanti.ts";
+import { readFileSync } from "node:fs";
+
+test("renderConf fills every placeholder, including the real setting lines", () => {
+  const conf = renderConf(readFileSync("luanti/bench.conf.in", "utf8"), 8, 42);
+  assert.match(conf, /^fixed_map_seed = 42$/m);
+  assert.match(conf, /^num_emerge_threads = 8$/m);
+  assert.doesNotMatch(conf, /@[A-Z]+@/);
+});
+
+test("mapMetaSeed reads the seed Luanti actually used", () => {
+  assert.equal(mapMetaSeed("mg_name = v7\nseed = 42\n[end_of_params]\n"), "42");
+  assert.equal(mapMetaSeed("mg_name = v7\n"), null);
 });

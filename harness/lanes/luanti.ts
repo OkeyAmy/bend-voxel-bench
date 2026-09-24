@@ -26,24 +26,40 @@ export function parseChunkTimes(stderr: string): ChunkTimes {
   return t;
 }
 
-// first line of bench_probe.txt: "emerge_us N errors E"
-export function parseProbeHeader(text: string): { emergeUs: number; errors: number } {
-  const m = /^emerge_us (\d+) errors (\d+)$/m.exec(text);
+// first line of bench_probe.txt: "emerge_us N errors E cancelled C passes P".
+// cancelled: blocks another emerge thread was already generating (normal with
+// several threads); the probe re-emerges until a pass has none, then stops the clock.
+export function parseProbeHeader(text: string): { emergeUs: number; errors: number; cancelled: number; passes: number } {
+  const m = /^emerge_us (\d+) errors (\d+) cancelled (\d+) passes (\d+)$/m.exec(text);
   if (!m) throw new Error(`bench_probe.txt has no header: ${text.slice(0, 120)}`);
-  return { emergeUs: Number(m[1]), errors: Number(m[2]) };
+  return { emergeUs: Number(m[1]), errors: Number(m[2]), cancelled: Number(m[3]), passes: Number(m[4]) };
+}
+
+// bench.conf.in with @THREADS@ and @SEED@ filled in
+export function renderConf(template: string, threads: number, seed: number): string {
+  return template.replaceAll("@THREADS@", String(threads)).replaceAll("@SEED@", String(seed));
+}
+
+// the "seed = N" line of a world's map_meta.txt (null when absent)
+export function mapMetaSeed(mapMeta: string): string | null {
+  return /^seed = (\d+)$/m.exec(mapMeta)?.[1] ?? null;
 }
 
 export async function runLuanti(threads: number, seed: number, keepDump: boolean): Promise<LaneRun & { chunks: ChunkTimes }> {
   const dir = mkdtempSync(`${tmpdir()}/bvb-luanti-`);
   const world = `${dir}/world`;
   cpSync("luanti/world_template", world, { recursive: true });
-  writeFileSync(`${dir}/bench.conf`, readFileSync("luanti/bench.conf.in", "utf8").replace("@THREADS@", String(threads)).replace("@SEED@", String(seed)));
+  writeFileSync(`${dir}/bench.conf`, renderConf(readFileSync("luanti/bench.conf.in", "utf8"), threads, seed));
   const r = await run(LUANTI, ["--config", `${dir}/bench.conf`, "--world", world, "--gameid", "devtest", "--logfile", `${dir}/debug.txt`], { timeoutMs: 600_000 });
   const chunks = parseChunkTimes(r.stderr);
   const fail = (error: string) => ({ ok: false, error, wallMs: r.wallMs, terrainMs: 0, liquidMs: 0, lightMs: 0, peakKb: r.peakKb, chunks });
   if (r.timedOut) return fail("timeout");
   if (r.code !== 0) return fail(`exit ${r.code}: ${r.stderr.slice(-500)}`);
   if (!existsSync(`${world}/bench_probe.txt`)) return fail("bench_probe.txt was not written");
+  // the world must have been generated from the seed we asked for (Luanti stores it as u64)
+  const usedSeed = existsSync(`${world}/map_meta.txt`) ? mapMetaSeed(readFileSync(`${world}/map_meta.txt`, "utf8")) : null;
+  const wantSeed = BigInt.asUintN(64, BigInt(seed)).toString();
+  if (usedSeed !== wantSeed) return fail(`world seed is ${usedSeed ?? "missing"}, expected ${wantSeed}`);
   const probe = readFileSync(`${world}/bench_probe.txt`, "utf8");
   const head = parseProbeHeader(probe);
   if (head.errors > 0) return fail(`${head.errors} blocks failed to emerge`);
