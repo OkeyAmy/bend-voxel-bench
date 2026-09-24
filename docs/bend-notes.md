@@ -27,6 +27,7 @@ sends that whole call tree to the GPU.
 | Renderer in the engine, mesh cached, 1 mapchunk, 640 × 480 | 1 ms build + 10 ms draw | — | Caching world-space quads leaves only projection per frame |
 | Same at 1280 × 720 | 2 ms + 13 ms (≈ 66 FPS) | — | 3× the pixels costs +4 ms: triangles, not pixels, set the cost |
 | 3 × 3 mapchunks with border faces, 640 × 480 | 14 ms build + 62 ms draw (≈ 13 FPS), 30,916 triangles | — | Needs culling and LOD next |
+| **5 × 5 streamed world, 1280 × 720, 8 threads (battery)** | baseline 52 ms/frame → **30 ms** (G2 met) | — | View culling 52 → 35 ms; far mapchunks at half resolution → 30 ms; merging step fronts made it *slower* (see trap 14) |
 | Streaming: 600 frames flying 1,200 blocks (generate + mesh, no render) | 101 mapchunks loaded, 30 kept, 2.5 s total, peak 16 MB | — | No garbage collector, yet memory stays flat: a dropped mapchunk is freed the moment it's no longer referenced |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
@@ -74,6 +75,9 @@ sends that whole call tree to the GPU.
 12. **A module's identity is the spelling of its import path.** If `render/probe.bend` imports `./mesh.bend` and `world/world.bend` imports `../render/mesh.bend`, then checking `probe.bend` on its own fails with "one namespace per file ... is both 'mesh' and '../render/mesh'", because `render/../render` isn't collapsed. Checking from the program root (`engine/main.bend`) works. Check whole programs from their root.
 
 13. **Types inside a module carry the module's alias.** A type named `S.Off` in `stream.bend`, imported `as S`, is `S.S.Off` outside. Name types without the prefix, or expect the double name.
+
+14. **Fewer triangles isn't always faster in Bend3D.** Merging step fronts into long strips cut triangles 16 % but made frames 11 % slower. Bend3D sorts each triangle into every 64-px screen cell its box touches, so a long thin strip lands in many cells. Big *square-ish* savings help (half-resolution far land: −20 %); long slivers hurt. That's the shaders guide's warning about slivers, measured.
+15. **Measure on AC power.** On battery the laptop gave 38–39 ms for the same frame that ran 35 ms earlier. Always record the power state with a benchmark.
 
 ## 6. Harness lessons (not Bend-specific, but found here)
 

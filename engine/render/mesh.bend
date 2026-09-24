@@ -26,7 +26,7 @@ def Mesh.f(+x: U32) -> F32:
   I.I32.to_f32(x)
 
 # side face on the plane X = x between columns of level lp (x - 1) and l (x)
-def Mesh.xside(same: Bool, +x: U32, +z: U32, +lp: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
+def Mesh.xside(same: Bool, +s: U32, +x: U32, +z: U32, +lp: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
   match same:
     case True{}:
       qs
@@ -37,11 +37,11 @@ def Mesh.xside(same: Bool, +x: U32, +z: U32, +lp: U32, +l: U32, qs: +List<Q>) ->
       +hi = Mesh.f(M.word(curhi, t, tp))
       +lo = Mesh.f(M.word(curhi, tp, t))
       Q{R.Vec{Mesh.f(x), lo, Mesh.f(z)}, R.Vec{Mesh.f(x), hi, Mesh.f(z)},
-        R.Vec{Mesh.f(x), hi, Mesh.f((z + 1 : U32))}, R.Vec{Mesh.f(x), lo, Mesh.f((z + 1 : U32))},
+        R.Vec{Mesh.f(x), hi, Mesh.f((z + s : U32))}, R.Vec{Mesh.f(x), lo, Mesh.f((z + s : U32))},
         R.Vec.scale(Mesh.colour(M.word(curhi, l, lp)), 0.75), Bool.not(curhi)} <> qs
 
 # side face on the plane Z = z between columns of level lu (z - 1) and l (z)
-def Mesh.zside(same: Bool, +x: U32, +z: U32, +lu: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
+def Mesh.zside(same: Bool, +s: U32, +x: U32, +z: U32, +lu: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
   match same:
     case True{}:
       qs
@@ -51,39 +51,39 @@ def Mesh.zside(same: Bool, +x: U32, +z: U32, +lu: U32, +l: U32, qs: +List<Q>) ->
       +curhi = I.I32.le(tu, t)
       +hi = Mesh.f(M.word(curhi, t, tu))
       +lo = Mesh.f(M.word(curhi, tu, t))
-      Q{R.Vec{Mesh.f(x), lo, Mesh.f(z)}, R.Vec{Mesh.f((x + 1 : U32)), lo, Mesh.f(z)},
-        R.Vec{Mesh.f((x + 1 : U32)), hi, Mesh.f(z)}, R.Vec{Mesh.f(x), hi, Mesh.f(z)},
+      Q{R.Vec{Mesh.f(x), lo, Mesh.f(z)}, R.Vec{Mesh.f((x + s : U32)), lo, Mesh.f(z)},
+        R.Vec{Mesh.f((x + s : U32)), hi, Mesh.f(z)}, R.Vec{Mesh.f(x), hi, Mesh.f(z)},
         R.Vec.scale(Mesh.colour(M.word(curhi, l, lu)), 0.6), Bool.not(curhi)} <> qs
 
 # top face of the run of columns [rs, x) at level l
-def Mesh.run(+rs: U32, +x: U32, +z: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
+def Mesh.run(+s: U32, +rs: U32, +x: U32, +z: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
   +t = Mesh.f(Mesh.top(l))
   Q{R.Vec{Mesh.f(rs), t, Mesh.f(z)}, R.Vec{Mesh.f(x), t, Mesh.f(z)},
-    R.Vec{Mesh.f(x), t, Mesh.f((z + 1 : U32))}, R.Vec{Mesh.f(rs), t, Mesh.f((z + 1 : U32))},
+    R.Vec{Mesh.f(x), t, Mesh.f((z + s : U32))}, R.Vec{Mesh.f(rs), t, Mesh.f((z + s : U32))},
     Mesh.colour(l), False{}} <> qs
 
-def Mesh.flush(same: Bool, +rs: U32, +x: U32, +z: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
+def Mesh.flush(same: Bool, +s: U32, +rs: U32, +x: U32, +z: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
   match same:
     case True{}:
       qs
     case False{}:
-      Mesh.run(rs, x, z, l, qs)
+      Mesh.run(s, rs, x, z, l, qs)
 
-def Mesh.sides(+x: U32, +z: U32, +lp: U32, +lu: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
-  Mesh.zside(U32.is_eq(Mesh.top(lu), Mesh.top(l)), x, z, lu, l,
-    Mesh.xside(U32.is_eq(Mesh.top(lp), Mesh.top(l)), x, z, lp, l, qs))
+def Mesh.sides(+s: U32, +x: U32, +z: U32, +lp: U32, +lu: U32, +l: U32, qs: +List<Q>) -> +List<Q>:
+  Mesh.zside(U32.is_eq(Mesh.top(lu), Mesh.top(l)), s, x, z, lu, l,
+    Mesh.xside(U32.is_eq(Mesh.top(lp), Mesh.top(l)), s, x, z, lp, l, qs))
 
 # one row against the row before it (ups); lp = the level to the left,
 # rs = where the current run of equal tops started
-def Mesh.row(ups: +List<U32>, cur: +List<U32>, +x: U32, +z: U32, +lp: U32, +rs: U32,
+def Mesh.row(ups: +List<U32>, cur: +List<U32>, +s: U32, +x: U32, +z: U32, +lp: U32, +rs: U32,
     qs: +List<Q>) -> +List<Q>:
   match ups cur:
     case Con{+lu, ut} Con{+l, ct}:
       +same = U32.is_eq(Mesh.top(l), Mesh.top(lp))
-      Mesh.row(ut, ct, (x + 1 : U32), z, l, M.word(same, rs, x),
-        Mesh.flush(same, rs, x, z, lp, Mesh.sides(x, z, lp, lu, l, qs)))
+      Mesh.row(ut, ct, s, (x + s : U32), z, l, M.word(same, rs, x),
+        Mesh.flush(same, s, rs, x, z, lp, Mesh.sides(s, x, z, lp, lu, l, qs)))
     case _ _:
-      Mesh.run(rs, x, z, lp, qs)
+      Mesh.run(s, rs, x, z, lp, qs)
 
 # the head of xs, or d when xs is empty
 def Mesh.head(xs: +List<U32>, +d: U32) -> U32:
@@ -101,21 +101,47 @@ def Mesh.or(xs: +List<U32>, +d: +List<U32>) -> +List<U32>:
     case Con{+h, +t}:
       h <> t
 
-# k rows from ls; ups is the row before, west the levels left of each row
-def Mesh.rows(k: Nat, ups: +List<U32>, +ls: +List<U32>, +west: +List<U32>, +x0: U32, +z: U32,
-    qs: +List<Q>) -> +List<Q>:
+# k rows of n columns from ls, each column s blocks wide; ups is the row
+# before, west the levels left of each row
+def Mesh.rows(k: Nat, +n: Nat, +s: U32, ups: +List<U32>, +ls: +List<U32>, +west: +List<U32>,
+    +x0: U32, +z: U32, qs: +List<Q>) -> +List<Q>:
   match k:
     case 0n:
       qs
     case 1n+p:
-      +cur = List.take(&2, U32, ls, 80n)
+      +cur = List.take(&2, U32, ls, n)
       +lp = Mesh.head(west, Mesh.head(cur, 0))
-      Mesh.rows(p, cur, List.drop(&2, U32, ls, 80n), List.drop(&2, U32, west, 1n), x0,
-        (z + 1 : U32), Mesh.row(ups, cur, x0, z, lp, x0, qs))
+      Mesh.rows(p, n, s, cur, List.drop(&2, U32, ls, n), List.drop(&2, U32, west, 1n), x0,
+        (z + s : U32), Mesh.row(ups, cur, s, x0, z, lp, x0, qs))
 
 # The quads of the mapchunk at node origin (x0, z0) from its 6400 levels
 # (row-major, z outer). west: the 80 levels of column x0 - 1 (one per row);
 # north: the 80 levels of row z0 - 1; [] when that neighbour is not loaded,
 # and then that border gets no faces.
 def Mesh.chunk(+ls: +List<U32>, +x0: U32, +z0: U32, +west: +List<U32>, +north: +List<U32>) -> +List<Q>:
-  Mesh.rows(80n, Mesh.or(north, List.take(&2, U32, ls, 80n)), ls, west, x0, z0, [])
+  Mesh.rows(80n, 80n, 1, Mesh.or(north, List.take(&2, U32, ls, 80n)), ls, west, x0, z0, [])
+
+# ---- level of detail: 40 x 40 columns of 2 x 2 blocks, level = the highest of the four ----
+
+def Mesh.max(+a: U32, +b: U32) -> U32:
+  M.word(I.I32.le(a, b), b, a)
+
+def Mesh.pairmax(r0: +List<U32>, r1: +List<U32>) -> +List<U32>:
+  match r0 r1:
+    case Con{+a, Con{+b, t0}} Con{+c, Con{+d, t1}}:
+      Mesh.max(Mesh.max(a, b), Mesh.max(c, d)) <> Mesh.pairmax(t0, t1)
+    case _ _:
+      []
+
+def Mesh.half(k: Nat, +ls: +List<U32>) -> +List<U32>:
+  match k:
+    case 0n:
+      []
+    case 1n+p:
+      List.append(&2, U32, Mesh.pairmax(List.take(&2, U32, ls, 80n), List.take(&2, U32, List.drop(&2, U32, ls, 80n), 80n)),
+        Mesh.half(p, List.drop(&2, U32, ls, 160n)))
+
+# the far mesh: no border faces with neighbours (the fog hides the seams)
+def Mesh.chunk.lod(+ls: +List<U32>, +x0: U32, +z0: U32) -> +List<Q>:
+  +h = Mesh.half(40n, ls)
+  Mesh.rows(40n, 40n, 2, List.take(&2, U32, h, 40n), h, [], x0, z0, [])

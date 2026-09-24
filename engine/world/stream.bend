@@ -68,7 +68,7 @@ def S.near(+a: U32, +b: U32) -> Bool:
   (I.I32.le((a - b : U32), 240) && I.I32.le((b - a : U32), 240))
 
 def S.near.mc(+m: W.Mc, +cx: U32, +cz: U32) -> Bool:
-  W.Mc{x, z, _, _} = m
+  W.Mc{x, z, _, _, _} = m
   (S.near(x, cx) && S.near(z, cz))
 
 def S.keep.pick(ok: Bool, +m: W.Mc, +rest: +List<W.Mc>) -> +List<W.Mc>:

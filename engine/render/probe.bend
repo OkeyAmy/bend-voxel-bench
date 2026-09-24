@@ -10,6 +10,7 @@ import ./mesh.bend as Q
 import ./draw.bend as D
 import ./view.bend as V
 import ../world/world.bend as W
+import ../world/stream.bend as S
 
 # scene hills1: seed 0, the mapchunk at (-31952, -31952), seen from its corner
 def P.hills1() -> +List<Q.Q>:
@@ -29,26 +30,98 @@ def P.world3() -> +List<W.Mc>:
 # every loaded mapchunk's quads in one list
 def P.flat(w: +List<W.Mc>) -> +List<Q.Q>:
   match w:
-    case Con{W.Mc{_, _, _, +qs}, t}:
+    case Con{W.Mc{_, _, _, +qs, _}, t}:
       List.append(&2, Q.Q, qs, P.flat(t))
     case Nil{}:
       []
 
-def P.scene(three: Bool) -> +List<Q.Q>:
-  match three:
-    case True{}:
-      P.flat(P.world3())
-    case False{}:
-      P.hills1()
+# scene path: seed 123456789, flying east along z = 29990 from x = -30100
+def P.path.x(+i: U32) -> F32:
+  (0.0 - 30100.0 + 0.6 * U32.to_f32(i) : F32)
 
-def P.cam.pick(three: Bool, +i: U32, +w: U32, +h: U32) -> R.Cam:
-  match three:
+def P.path.ws() -> U32:
+  123456789
+
+def P.stepw(+st: S.S.Step) -> +List<W.Mc>:
+  S.S.Step{+w, _} = st
+  w
+
+def P.stream(+i: U32, +w: +List<W.Mc>) -> +List<W.Mc>:
+  P.stepw(S.S.step(P.path.ws(), P.path.x(i), 29990.0, w))
+
+# stream k steps at frame i's position (the pre-load before timing)
+def P.prestream(k: Nat, +i: U32, +w: +List<W.Mc>) -> +List<W.Mc>:
+  match k:
+    case 0n:
+      w
+    case 1n+p:
+      P.prestream(p, i, P.stream(i, w))
+
+# scenes: 0 hills1, 1 hills3, 2 path
+def P.world.pick(one: Bool, three: Bool) -> +List<W.Mc>:
+  match one three:
+    case True{} _:
+      W.World.load(0, (0 - 31952 : U32), (0 - 31952 : U32), [])
+    case False{} True{}:
+      P.world3()
+    case False{} False{}:
+      P.prestream(40n, 0, [])
+
+def P.world(+sc: U32) -> +List<W.Mc>:
+  P.world.pick(U32.is_eq(sc, 0), U32.is_eq(sc, 1))
+
+# the world for the next frame: only the path scene moves and streams
+def P.next(path: Bool, +i: U32, +w: +List<W.Mc>) -> +List<W.Mc>:
+  match path:
     case True{}:
+      P.stream(i, w)
+    case False{}:
+      w
+
+# every loaded mapchunk's quads into the cells
+# mapchunks nearer than this get the full mesh, farther ones the half-resolution one
+def P.lod() -> F32:
+  100.0
+
+def P.draw.one(vis: Bool, near: Bool, +qs: +List<Q.Q>, +far: +List<Q.Q>, +cam: R.Cam, +m: U32,
+    +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  match vis near:
+    case True{} True{}:
+      D.Draw.quads(qs, cam, m, x1, y1, cells)
+    case True{} False{}:
+      D.Draw.quads(far, cam, m, x1, y1, cells)
+    case False{} _:
+      cells
+
+# the quads of every loaded mapchunk in view into the cells
+def P.draw(w: +List<W.Mc>, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  match w:
+    case Con{W.Mc{+x, +z, _, +qs, +far}, t}:
+      P.draw(t, cam, m, x1, y1, P.draw.one(D.Draw.visible(cam, I.I32.to_f32(x), I.I32.to_f32(z)),
+        (D.Draw.dist(cam, I.I32.to_f32(x), I.I32.to_f32(z)) <= P.lod() : F32), qs, far, cam, m, x1, y1, cells))
+    case Nil{}:
+      cells
+
+def P.quads(w: +List<W.Mc>) -> Nat:
+  match w:
+    case Con{W.Mc{_, _, _, +qs, _}, t}:
+      Nat.add(List.length(&2, Q.Q, qs), P.quads(t))
+    case Nil{}:
+      0n
+
+def P.cam.pick(three: Bool, path: Bool, +i: U32, +w: U32, +h: U32) -> R.Cam:
+  match three path:
+    case _ True{}:
+      V.V.cam(P.path.x(i), 70.0, 29990.0, 1.5708, (0.0 - 0.3 : F32), w, h)
+    case True{} False{}:
       V.V.cam((0.0 - 30130.0 : F32), 60.0, 29870.0, (0.785 + 0.01 * U32.to_f32(i) : F32),
         (0.0 - 0.35 : F32), w, h)
-    case False{}:
+    case False{} False{}:
       V.V.cam((0.0 - 31965.0 : F32), 48.0, (0.0 - 31965.0 : F32),
         (0.785 + 0.01 * U32.to_f32(i) : F32), (0.0 - 0.42 : F32), w, h)
+
+def P.cam(+sc: U32, +i: U32, +w: U32, +h: U32) -> R.Cam:
+  P.cam.pick(U32.is_eq(sc, 1), U32.is_eq(sc, 2), i, w, h)
 
 def P.le(a: Nat, b: Nat) -> Bool:
   Nat.is_le(a, b)
@@ -70,7 +143,7 @@ def P.report(+bs: +List<Nat>, +ds: +List<Nat>, +tris: Nat) -> String:
     ++ Nat.show(tris)
 
 type Run is Data:
-  Run{w: U32, h: U32, m: U32, three: Bool}
+  Run{w: U32, h: U32, m: U32, sc: U32}
 
 def P.w(+r: Run) -> U32:
   Run{w, _, _, _} = r
@@ -84,18 +157,18 @@ def P.m(+r: Run) -> U32:
   Run{_, _, m, _} = r
   m
 
-def P.three(+r: Run) -> Bool:
+def P.sc(+r: Run) -> U32:
   Run{_, _, _, t} = r
   t
 
 @unsafe
-def P.loop(k: Nat, +qs: +List<Q.Q>, +run: Run, +i: U32, last: Image & R.Cells, +bs: +List<Nat>,
+def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, +bs: +List<Nat>,
     +ds: +List<Nat>, path: String) -> IO(Unit):
   match k:
     case 0n:
       (old, used) = last
       do IO<Unit>:
-        IO.print(P.report(bs, ds, Nat.mul(2n, List.length(&2, Q.Q, qs))))
+        IO.print(P.report(bs, ds, Nat.mul(2n, P.quads(qs))))
         V.V.ppm(old, P.w(run), P.h(run), path)
     case 1n+p:
       (old, used) = last
@@ -104,12 +177,13 @@ def P.loop(k: Nat, +qs: +List<Q.Q>, +run: Run, +i: U32, last: Image & R.Cells, +
       do IO<Unit>:
         +t0 : Nat <- IO.now()
         _ : R.Cells = R.Cells.drop(4n, used)
-        cells : R.Cells = D.Draw.quads(qs, P.cam.pick(P.three(run), i, w, h), P.m(run), U32.to_f32((w - 1 : U32)),
+        +wn : +List<W.Mc> = P.next(U32.is_eq(P.sc(run), 2), i, qs)
+        cells : R.Cells = P.draw(wn, P.cam(P.sc(run), i, w, h), P.m(run), U32.to_f32((w - 1 : U32)),
           U32.to_f32((h - 1 : U32)), R.CNil{})
         +t1 : Nat <- IO.now()
         drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame(U32.is_eq(w, 1280), cells, old))
         +t2 : Nat <- IO.now()
-        P.loop(p, qs, run, (i + 1 : U32), drawn, Nat.sub(t1, t0) <> bs, Nat.sub(t2, t1) <> ds, path)
+        P.loop(p, wn, run, (i + 1 : U32), drawn, Nat.sub(t1, t0) <> bs, Nat.sub(t2, t1) <> ds, path)
 
 def P.arg(xs: +List<String>, n: Nat) -> String:
   Maybe.default(&2, String, List.get(&2, String, xs, n), "")
@@ -124,15 +198,16 @@ def P.size_ok(+w: U32, +h: U32) -> Bool:
 def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
   match ok:
     case False{}:
-      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3 <frames> <640 480|1280 720> <out.ppm> [diag]")
+      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3|path <frames> <640 480|1280 720> <out.ppm> [diag]")
     case True{}:
-      +three = String.eq(P.arg(args, 1n), "hills3")
-      P.loop(U32.to_nat(P.num(args, 2n)), P.scene(three),
+      +sc = M.word(String.eq(P.arg(args, 1n), "hills3"), 1, M.word(String.eq(P.arg(args, 1n), "path"), 2, 0))
+      P.loop(U32.to_nat(P.num(args, 2n)), P.world(sc),
         Run{P.num(args, 3n), P.num(args, 4n), M.word(String.eq(P.arg(args, 6n), "diag"), 1, 0),
-          three}, 0, (Pix{0}, R.CNil{}), [], [], P.arg(args, 5n))
+          sc}, 0, (Pix{0}, R.CNil{}), [], [], P.arg(args, 5n))
 
 # args: ["render", scene, frames, w, h, out, diag?]
 @unsafe
 def P.run(+args: +List<String>) -> IO(Unit):
-  P.go(((String.eq(P.arg(args, 1n), "hills1") || String.eq(P.arg(args, 1n), "hills3")) && P.size_ok(P.num(args, 3n), P.num(args, 4n))
+  P.go(((String.eq(P.arg(args, 1n), "hills1") || String.eq(P.arg(args, 1n), "hills3")
+    || String.eq(P.arg(args, 1n), "path")) && P.size_ok(P.num(args, 3n), P.num(args, 4n))
     && (P.num(args, 2n) > 0 : U32)), args)

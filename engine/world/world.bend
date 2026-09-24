@@ -7,9 +7,10 @@ import ../i32.bend as I
 import ../mapgen.bend as M
 import ../render/mesh.bend as Q
 
-# x, z: node origin (two's complement); ls: 6400 levels, row-major
+# x, z: node origin (two's complement); ls: 6400 levels, row-major;
+# qs: the full mesh; far: the half-resolution mesh drawn far away
 type Mc is Data:
-  Mc{x: U32, z: U32, ls: +List<U32>, qs: +List<Q.Q>}
+  Mc{x: U32, z: U32, ls: +List<U32>, qs: +List<Q.Q>, far: +List<Q.Q>}
 
 # levels of column 79 (one per row) and of row 79
 def World.col79.go(k: Nat, +ls: +List<U32>) -> +List<U32>:
@@ -26,14 +27,14 @@ def World.row79(+ls: +List<U32>) -> +List<U32>:
   List.drop(&2, U32, ls, 6320n)
 
 def World.at(+m: Mc, +x: U32, +z: U32) -> Bool:
-  Mc{mx, mz, _, _} = m
+  Mc{mx, mz, _, _, _} = m
   (U32.is_eq(mx, x) && U32.is_eq(mz, z))
 
 # the levels of the mapchunk at (x, z), [] when not loaded
 def World.levels.pick(hit: Bool, +m: Mc, +rest: +List<U32>) -> +List<U32>:
   match hit:
     case True{}:
-      Mc{_, _, ls, _} = m
+      Mc{_, _, ls, _, _} = m
       ls
     case False{}:
       rest
@@ -73,8 +74,8 @@ def World.mesh(+w: +List<Mc>, +x: U32, +z: U32, +ls: +List<U32>) -> +List<Q.Q>:
 def World.remesh.pick(hit: Bool, +all: +List<Mc>, +m: Mc) -> Mc:
   match hit:
     case True{}:
-      Mc{x, z, ls, _} = m
-      Mc{x, z, ls, World.mesh(all, x, z, ls)}
+      Mc{x, z, ls, _, far} = m
+      Mc{x, z, ls, World.mesh(all, x, z, ls), far}
     case False{}:
       m
 
@@ -91,7 +92,7 @@ def World.remesh(+w: +List<Mc>, +x: U32, +z: U32) -> +List<Mc>:
 # generate the mapchunk at (x, z), mesh it, then re-mesh its east and south neighbours
 def World.load(+ws: U32, +x: U32, +z: U32, +w: +List<Mc>) -> +List<Mc>:
   +ls = M.M.heights(ws, I.I32.to_f32(x), I.I32.to_f32(z))
-  +w1 = {Mc{x, z, ls, World.mesh(w, x, z, ls)} <> w : +List<Mc>}
+  +w1 = {Mc{x, z, ls, World.mesh(w, x, z, ls), Q.Mesh.chunk.lod(ls, x, z)} <> w : +List<Mc>}
   World.remesh(World.remesh(w1, (x + 80 : U32), z), x, (z + 80 : U32))
 
 def World.count(w: +List<Mc>) -> Nat:
