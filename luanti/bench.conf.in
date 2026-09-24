@@ -1,0 +1,10 @@
+# Written per run by harness/lanes/luanti.ts; @THREADS@ and @SEED@ are filled in.
+mg_name = v7
+fixed_map_seed = @SEED@
+water_level = 1
+chunksize = 5
+mg_flags = nocaves,nodungeons,nodecorations,nobiomes,noores,nolight
+mgv7_spflags = nomountains,noridges,nofloatlands,nocaverns
+num_emerge_threads = @THREADS@
+server_announce = false
+enable_mapgen_debug_info = false
