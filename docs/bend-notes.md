@@ -24,6 +24,8 @@ sends that whole call tree to the GPU.
 | Same, 8 threads | 530 ms | — | Bend's own speedup is 2.5× (4 cores + hyperthreads) |
 | Voxel renderer, 1 mapchunk, 640 × 480, 8 threads | 2.2 ms build + 9.8 ms draw | — | About 80 FPS, all on CPU, no graphics card |
 | Same, 3 × 3 mapchunks | 21 ms + 41 ms | — | About 16 FPS, so it needs culling and LOD (Plan 2a Task 4) |
+| Renderer in the engine, mesh cached, 1 mapchunk, 640 × 480 | 1 ms build + 10 ms draw | — | Caching world-space quads leaves only projection per frame |
+| Same at 1280 × 720 | 2 ms + 13 ms (≈ 66 FPS) | — | 3× the pixels costs +4 ms: triangles, not pixels, set the cost |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
 
@@ -61,6 +63,9 @@ sends that whole call tree to the GPU.
 6. **Rendering winding matters.** Bend3D drops triangles facing away (clockwise on screen). We found the right winding by rendering all four choices and counting sky pixels showing through, not by reasoning.
 7. **Host-side parallel forks don't always help.** Building 9 mapchunk meshes in parallel made the build 10 % faster, but drawing 50 % slower. Merging the per-fork triangle lists costs time, and a smaller task doesn't pay for its fork.
 8. **The draw cost scales with triangle count, not pixel count.** Going from 1920 × 1200 to 1280 × 720 cut the boss demo only from 28.5 to 24 ms, and merging equal block tops cut our frame 3×.
+
+9. **Frame sizes are compile-time.** Bend3D's `Frame.show` takes the width and height as `~` templates, so each screen size is its own compiled function (`V.frame640`, `V.frame1280`). You can't pick a size at runtime without writing a branch per size.
+10. **Comparator arguments for `List.sort` must be plain, not `+`.** `def le(a: Nat, b: Nat)`: a `+a` parameter changes the function's type and the template no longer fits.
 
 ## 6. Harness lessons (not Bend-specific, but found here)
 

@@ -11,3 +11,7 @@ luanti/timing.patch: a patch to Luanti 5.17.0 src/mapgen/mapgen_v7.cpp,
 LGPL-2.1-or-later.
 
 Everything else: MIT (LICENSES/MIT.txt).
+
+engine/render/bend3d.bend: copied unchanged from bendlang/bend v2.0.27
+demos/app_slash_boss_3d/bend3d.bend, Apache-2.0 (LICENSES/Apache-2.0.txt).
+Copyright the Bend authors (HigherOrderCO / bendlang).
