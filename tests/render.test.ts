@@ -33,8 +33,8 @@ test("render is deterministic", () => {
 // the spike measured 1 such pixel once the winding was right, and 18,731 with it wrong
 test("gap test: no sky showing through terrain compared with both-winding render", () => {
   const dir = mkdtempSync(`${tmpdir()}/bvb-r-`);
-  render(["hills1", "1", "640", "480", `${dir}/n.ppm`]);
-  render(["hills1", "1", "640", "480", `${dir}/d.ppm`, "diag"]);
+  render(["hills1", "1", "640", "480", `${dir}/n.ppm`, "nofog"]);
+  render(["hills1", "1", "640", "480", `${dir}/d.ppm`, "diag", "nofog"]);
   assert.ok(skyWhereTerrain(readPpm(`${dir}/n.ppm`).px, readPpm(`${dir}/d.ppm`).px) <= 5);
 });
 
@@ -42,8 +42,9 @@ test("gap test: no sky showing through terrain compared with both-winding render
 // mapchunks must have their side faces, so no sky shows through there either
 test("gap test on the 3x3 world, borders in view", () => {
   const dir = mkdtempSync(`${tmpdir()}/bvb-r-`);
-  render(["hills3", "1", "640", "480", `${dir}/n.ppm`]);
-  render(["hills3", "1", "640", "480", `${dir}/d.ppm`, "diag"]);
+  // fog off: fogged terrain is sky-coloured on purpose and would read as a gap
+  render(["hills3", "1", "640", "480", `${dir}/n.ppm`, "nofog"]);
+  render(["hills3", "1", "640", "480", `${dir}/d.ppm`, "diag", "nofog"]);
   assert.ok(skyWhereTerrain(readPpm(`${dir}/n.ppm`).px, readPpm(`${dir}/d.ppm`).px) <= 5);
 });
 

@@ -18,13 +18,14 @@ def Draw.flat(+v: R.Vec) -> R.Vec:
 def Draw.hdist(+a: R.Vec, +b: R.Vec) -> F32:
   R.Vec.len(R.Vec.sub(Draw.flat(a), Draw.flat(b)))
 
-def Draw.fogged(+cam: R.Cam, +p: R.Vec, +c: R.Vec) -> R.Vec:
+# fog0: where the fog starts (100 blocks; a huge value turns the fog off)
+def Draw.fogged(+fog0: F32, +cam: R.Cam, +p: R.Vec, +c: R.Vec) -> R.Vec:
   R.Cam{eye, _, _, _, _, _, _, _, _, _} = cam
-  +f = R.sat(((Draw.hdist(p, eye) - 100.0) / 100.0 : F32))
+  +f = R.sat(((Draw.hdist(p, eye) - fog0) / 100.0 : F32))
   R.Vec.mix(c, R.Vec{0.525, 0.702, 0.902}, f)
 
-def Draw.vert(+cam: R.Cam, +p: R.Vec, +c: R.Vec) -> R.Vert:
-  Draw.vert.go(R.Cam.proj(cam, p), Draw.fogged(cam, p, c))
+def Draw.vert(+fog0: F32, +cam: R.Cam, +p: R.Vec, +c: R.Vec) -> R.Vert:
+  Draw.vert.go(R.Cam.proj(cam, p), Draw.fogged(fog0, cam, p, c))
 
 # a b c d as triangles (a b c) and (a c d); mode 1 keeps both windings (diag)
 def Draw.tri2(+a: R.Vert, +b: R.Vert, +c: R.Vert, +d: R.Vert, +m: U32, +x1: F32, +y1: F32,
@@ -39,16 +40,16 @@ def Draw.pick(flip: Bool, +a: R.Vert, +b: R.Vert, +c: R.Vert, +d: R.Vert, +m: U3
     case True{}:
       Draw.tri2(a, d, c, b, m, x1, y1, cells)
 
-def Draw.quad(+q: Q.Q, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+def Draw.quad(+fog0: F32, +q: Q.Q, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   Q.Q{+a, +b, +c, +d, +col, flip} = q
-  Draw.pick(flip, Draw.vert(cam, a, col), Draw.vert(cam, b, col), Draw.vert(cam, c, col),
-    Draw.vert(cam, d, col), m, x1, y1, cells)
+  Draw.pick(flip, Draw.vert(fog0, cam, a, col), Draw.vert(fog0, cam, b, col), Draw.vert(fog0, cam, c, col),
+    Draw.vert(fog0, cam, d, col), m, x1, y1, cells)
 
 # every quad of qs into the cells of a frame whose last pixel is (x1, y1)
-def Draw.quads(qs: +List<Q.Q>, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+def Draw.quads(qs: +List<Q.Q>, +fog0: F32, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   match qs:
     case Con{+q, t}:
-      Draw.quads(t, cam, m, x1, y1, Draw.quad(q, cam, m, x1, y1, cells))
+      Draw.quads(t, fog0, cam, m, x1, y1, Draw.quad(fog0, q, cam, m, x1, y1, cells))
     case Nil{}:
       cells
 

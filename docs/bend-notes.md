@@ -29,6 +29,8 @@ sends that whole call tree to the GPU.
 | 3 × 3 mapchunks with border faces, 640 × 480 | 14 ms build + 62 ms draw (≈ 13 FPS), 30,916 triangles | — | Needs culling and LOD next |
 | **5 × 5 streamed world, 1280 × 720, 8 threads (battery)** | baseline 52 ms/frame → **30 ms** (G2 met) | — | View culling 52 → 35 ms; far mapchunks at half resolution → 30 ms; merging step fronts made it *slower* (see trap 14) |
 | Game frame with the race panel, 1280 × 720, 8 threads | 31–32 FPS (7 ms build + 25 ms draw) | — | New mapchunk while flying: 28 ms to generate and mesh |
+| Same with fog (on AC power) | 20 ms/frame ≈ 50 FPS | — | Fog also hides the world edge and the LOD seams |
+| Race button: regenerate the 25 mapchunks around you | 585 ms generate + mesh (8 threads) | Luanti C++ terrain only: 32.7 ms | Not the same work: Bend's number includes meshing |
 | Streaming: 600 frames flying 1,200 blocks (generate + mesh, no render) | 101 mapchunks loaded, 30 kept, 2.5 s total, peak 16 MB | — | No garbage collector, yet memory stays flat: a dropped mapchunk is freed the moment it's no longer referenced |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
@@ -56,6 +58,7 @@ sends that whole call tree to the GPU.
 | JSON, HTTP, TLS | not in the standard library | built in or one package away |
 | Package ecosystem | BendHub is days old | npm, crates.io, PyPI |
 | Stability | 23+ releases in the first week, no ABI stability | stable releases |
+| Vector maths | Bend3D has `add`, `sub`, `scale` (by a number), `dot`, `cross`, `len`, `unit`, `mix`, but no component-wise `mul` | GLM `a * b`, Unity `Vector3.Scale`, Godot `a * b`, three.js `multiply`, glam `a * b`, numpy `a * b` |
 
 ## 5. Traps (each one cost us time)
 
@@ -85,6 +88,10 @@ sends that whole call tree to the GPU.
 18. **Reading a file is three effects:** `File.open` → `File.read(f, max)` → `File.close`, each returning a `Result` (`Done{..}` / `Fail{..}`) to match on. There's no `read_to_string` shortcut.
 
 19. **Fog is cheap in a CPU renderer:** mix each vertex colour towards the sky by horizontal distance, and Bend3D interpolates it across the triangle. Measure distance horizontally, though: 3D distance from a camera 70 blocks up fogged the ground right below it.
+
+20. **Template (`~`) arguments must be closed:** a lambda passed to `List.any(~..., ~(s => String.eq(s, name)), ...)` can't mention the local `name`. Write the recursion by hand.
+21. **A window handle has exactly one owner.** `Window.frame` hands it back with the image and the events, and the quit branch must be the only other place it goes. Passing it to both "close" and "next frame" is rejected.
+22. **Node's test runner runs test files in parallel by default.** A benchmark test then fights the other tests for the CPU (60 ms instead of 20 ms). Run with `--test-concurrency=1`.
 
 ## 6. Harness lessons (not Bend-specific, but found here)
 

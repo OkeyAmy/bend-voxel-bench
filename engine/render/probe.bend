@@ -103,22 +103,22 @@ def P.hud(on: Bool, +race: H.Race, +rs: H.RaceSt, +build: U32, +draw: U32, +load
 def P.lod() -> F32:
   100.0
 
-def P.draw.one(vis: Bool, near: Bool, +qs: +List<Q.Q>, +far: +List<Q.Q>, +cam: R.Cam, +m: U32,
-    +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+def P.draw.one(vis: Bool, near: Bool, +qs: +List<Q.Q>, +far: +List<Q.Q>, +fog0: F32, +cam: R.Cam,
+    +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   match vis near:
     case True{} True{}:
-      D.Draw.quads(qs, cam, m, x1, y1, cells)
+      D.Draw.quads(qs, fog0, cam, m, x1, y1, cells)
     case True{} False{}:
-      D.Draw.quads(far, cam, m, x1, y1, cells)
+      D.Draw.quads(far, fog0, cam, m, x1, y1, cells)
     case False{} _:
       cells
 
 # the quads of every loaded mapchunk in view into the cells
-def P.draw(w: +List<W.Mc>, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+def P.draw(w: +List<W.Mc>, +fog0: F32, +cam: R.Cam, +m: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   match w:
     case Con{W.Mc{+x, +z, _, +qs, +far}, t}:
-      P.draw(t, cam, m, x1, y1, P.draw.one(D.Draw.visible(cam, I.I32.to_f32(x), I.I32.to_f32(z)),
-        (D.Draw.dist(cam, I.I32.to_f32(x), I.I32.to_f32(z)) <= P.lod() : F32), qs, far, cam, m, x1, y1, cells))
+      P.draw(t, fog0, cam, m, x1, y1, P.draw.one(D.Draw.visible(cam, I.I32.to_f32(x), I.I32.to_f32(z)),
+        (D.Draw.dist(cam, I.I32.to_f32(x), I.I32.to_f32(z)) <= P.lod() : F32), qs, far, fog0, cam, m, x1, y1, cells))
     case Nil{}:
       cells
 
@@ -177,9 +177,10 @@ def P.rs.w(go: Bool, +w: +List<W.Mc>) -> +List<W.Mc>:
     case False{}:
       w
 
+# not racing right now (idle, or a race finished): the button may start one
 def P.rs.idle(+r: H.RaceSt) -> Bool:
   H.RaceSt{st, _, _} = r
-  U32.is_eq(st, 0)
+  Bool.not(U32.is_eq(st, 1))
 
 def P.loaded(+st: S.S.Step) -> Bool:
   S.S.Step{_, got} = st
@@ -210,35 +211,50 @@ def P.rs.after(+r: H.RaceSt, +loaded: Bool, +ms: U32) -> IO(H.RaceSt):
   P.rs.count((U32.is_eq(st, 1) && loaded), r, ms)
 
 type Run is Data:
-  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race, btn: Bool}
+  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race, btn: Bool, fog0: F32}
 
 def P.w(+r: Run) -> U32:
-  Run{w, _, _, _, _, _, _} = r
+  Run{w, _, _, _, _, _, _, _} = r
   w
 
 def P.h(+r: Run) -> U32:
-  Run{_, h, _, _, _, _, _} = r
+  Run{_, h, _, _, _, _, _, _} = r
   h
 
 def P.m(+r: Run) -> U32:
-  Run{_, _, m, _, _, _, _} = r
+  Run{_, _, m, _, _, _, _, _} = r
   m
 
 def P.sc(+r: Run) -> U32:
-  Run{_, _, _, t, _, _, _} = r
+  Run{_, _, _, t, _, _, _, _} = r
   t
 
 def P.hudon(+r: Run) -> Bool:
-  Run{_, _, _, _, on, _, _} = r
+  Run{_, _, _, _, on, _, _, _} = r
   on
 
 def P.race(+r: Run) -> H.Race:
-  Run{_, _, _, _, _, race, _} = r
+  Run{_, _, _, _, _, race, _, _} = r
   race
 
 def P.btn(+r: Run) -> Bool:
-  Run{_, _, _, _, _, _, b} = r
+  Run{_, _, _, _, _, _, b, _} = r
   b
+
+def P.fog0(+r: Run) -> F32:
+  Run{_, _, _, _, _, _, _, f} = r
+  f
+
+# is the option among the render arguments after the output path?
+def P.has(xs: +List<String>, +name: String) -> Bool:
+  match xs:
+    case Con{+x, t}:
+      (String.eq(x, name) || P.has(t, name))
+    case Nil{}:
+      False{}
+
+def P.opt(+args: +List<String>, +name: String) -> Bool:
+  P.has(List.drop(&2, String, args, 6n), name)
 
 def P.stw(+st: S.S.Step) -> +List<W.Mc>:
   S.S.Step{w, _} = st
@@ -270,7 +286,7 @@ def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, 
         +x1 : F32 = U32.to_f32((w - 1 : U32))
         +y1 : F32 = U32.to_f32((h - 1 : U32))
         cells : R.Cells = P.hud(P.hudon(run), P.race(run), rs2, lb, ld, ll2, x1, y1,
-          P.draw(wn, P.cam(P.sc(run), i, w, h), P.m(run), x1, y1, R.CNil{}))
+          P.draw(wn, P.fog0(run), P.cam(P.sc(run), i, w, h), P.m(run), x1, y1, R.CNil{}))
         +t1 : Nat <- IO.now()
         drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame(U32.is_eq(w, 1280), cells, old))
         +t2 : Nat <- IO.now()
@@ -301,15 +317,16 @@ def P.missing(+race: H.Race) -> IO(Unit):
 def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
   match ok:
     case False{}:
-      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3|path <frames> <640 480|1280 720> <out.ppm> [diag]")
+      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3|path <frames> <640 480|1280 720> <out.ppm> [diag] [nohud] [nofog] [race]")
     case True{}:
       +sc = M.word(String.eq(P.arg(args, 1n), "hills3"), 1, M.word(String.eq(P.arg(args, 1n), "path"), 2, 0))
       do IO<Unit>:
         +race : H.Race <- H.Hud.read("out/race.txt")
         P.missing(race)
         P.loop(U32.to_nat(P.num(args, 2n)), P.world(sc),
-          Run{P.num(args, 3n), P.num(args, 4n), M.word(String.eq(P.arg(args, 6n), "diag"), 1, 0),
-            sc, Bool.not(String.eq(P.arg(args, 6n), "nohud")), race, String.eq(P.arg(args, 6n), "race")}, 0,
+          Run{P.num(args, 3n), P.num(args, 4n), M.word(P.opt(args, "diag"), 1, 0),
+            sc, Bool.not(P.opt(args, "nohud")), race, P.opt(args, "race"),
+            R.pick(P.opt(args, "nofog"), 1000000.0, 100.0)}, 0,
           (Pix{0}, R.CNil{}), [], [], 0, 0, 4294967295, H.RaceSt{0, 0, 0}, P.arg(args, 5n))
 
 # args: ["render", scene, frames, w, h, out, diag?]
