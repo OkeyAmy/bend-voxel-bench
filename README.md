@@ -20,31 +20,32 @@ bend engine/main.bend -o build/voxel          # about 30 s the first time
 | W A S D | fly forward, left, back, right |
 | arrows | look around |
 | Q / E | down / up |
-| G | race: drop the 25 mapchunks around you and time Bend regenerating them |
+| G | the live race: Bend and real Luanti generate the 100 mapchunks around you, right now (about 30 s; the game waits) |
 | Esc | quit |
 
 ## The panel
 
 ```
-FPS 43  BUILD 6 MS  DRAW 17 MS
+FPS 55  BUILD 5 MS  DRAW 13 MS
 NEW MAPCHUNK GEN+MESH 16 MS
-RACE PER MAPCHUNK  BEND 13.5 MS  8T 5.3 MS  LUANTI C++ 1.3 MS
-SAME BLOCKS AS LUANTI 100.00 %
-RACE 25/25  BEND GEN+MESH 585 MS  LUANTI C++ TERRAIN 32.7 MS
+LIVE RACE AT -30112,29968  BEND 1T 1321.0 MS  8T 501.0 MS  LUANTI C++ 1T 130.6 MS
+TERRAIN, 100 MAPCHUNKS  SAME BLOCKS 100.00 %  AC POWER  LOAD 1.62
 ```
 
 - **FPS, BUILD, DRAW:** each frame, the main thread turns the visible blocks into
   triangles (build), then one parallel Bend call draws the whole screen (draw).
-  More threads make DRAW faster: that's Bend's parallelism at work.
+  This is Bend only. It's never compared with Luanti, which draws on the GPU.
 - **NEW MAPCHUNK:** the time to generate and mesh the last 80 × 80 piece of land
   that appeared as you flew.
-- **RACE PER MAPCHUNK:** from our race against Luanti, terrain generation only,
-  the same work on both sides. Bend is about 10× slower than C++ on one thread and
-  speeds itself up about 2.5× on 8.
-- **SAME BLOCKS AS LUANTI:** Bend's world is bit-for-bit identical to Luanti's.
-- **RACE (after pressing G):** Bend's number includes meshing; Luanti's is terrain
-  only, so the line says both.
+- **LIVE RACE (after G):** the game runs `harness/live_race.ts` through `Proc.run`
+  (a custom Bend effect, `engine/sys/`). Bend and real Luanti each generate the
+  terrain of the same 100 mapchunks around you, in fresh processes, several times,
+  one after the other. The median times are shown.
+- **SAME BLOCKS:** every block Bend made is compared with Luanti's.
+- **AC POWER, LOAD:** the conditions the race ran under. Battery power or
+  background programs make the numbers slower and noisier.
 
+Before your first G, the race lines show the stored race from `out/race.txt`.
 The race numbers come from `out/race.txt`. Make it with:
 
 ```sh

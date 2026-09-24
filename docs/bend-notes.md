@@ -30,7 +30,8 @@ sends that whole call tree to the GPU.
 | **5 × 5 streamed world, 1280 × 720, 8 threads (battery)** | baseline 52 ms/frame → **30 ms** (G2 met) | — | View culling 52 → 35 ms; far mapchunks at half resolution → 30 ms; merging step fronts made it *slower* (see trap 14) |
 | Game frame with the race panel, 1280 × 720, 8 threads | 31–32 FPS (7 ms build + 25 ms draw) | — | New mapchunk while flying: 28 ms to generate and mesh |
 | Same with fog (on AC power) | 20 ms/frame ≈ 50 FPS | — | Fog also hides the world edge and the LOD seams |
-| Race button: regenerate the 25 mapchunks around you | 585 ms generate + mesh (8 threads) | Luanti C++ terrain only: 32.7 ms | Not the same work: Bend's number includes meshing |
+| Race button: regenerate the 25 mapchunks around you | 585 ms generate + mesh (8 threads) | Luanti C++ terrain only: 32.7 ms | Not the same work, so it was replaced by the live race below |
+| **Live race (G), 100 mapchunks at −30112, 29968, AC, load 1.6** | 1 thread 1,321 ms, 8 threads 501 ms | **Luanti C++ 1 thread 130.6 ms** | Same work, same moment, 100 % same blocks. Bend is 10× slower on one thread |
 | Streaming: 600 frames flying 1,200 blocks (generate + mesh, no render) | 101 mapchunks loaded, 30 kept, 2.5 s total, peak 16 MB | — | No garbage collector, yet memory stays flat: a dropped mapchunk is freed the moment it's no longer referenced |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
@@ -101,6 +102,19 @@ sends that whole call tree to the GPU.
 - JavaScript's `String.replace` replaces only the first match. That silently sent Luanti the wrong seed, and 75 % parity exposed it.
 - With several emerge threads, Luanti marks blocks another thread is already generating as "cancelled". A benchmark must re-request them before stopping the clock.
 - A timeout that kills `/usr/bin/time` leaves the measured program running. Kill the process group.
+
+## 6b. Honest benchmarking checklist (what this project does, and why)
+
+| Rule | How it's done here |
+|---|---|
+| Same work on both sides | Terrain generation (noise + block fill) of the same 100 mapchunks. Known leftovers: Luanti fills 82 layers per column, Bend 80; Bend's timer includes allocating its block arrays |
+| Same output, checked | Every lane's blocks are compared with Luanti's, column by column. A lane's time only counts at ≥ 99.99 % (we get 100 %) |
+| Same machine, same moment | `live_race.ts` (and G in the game) runs both engines one after the other, interleaved, on this laptop, now |
+| Fresh processes, no caching | Every run is a new process on a new temporary world |
+| Several runs, medians, spread | 1 warm-up plus 3 (live) or 5 (`arena.ts`) runs. The table shows min, max and spread |
+| Conditions recorded | Power (AC or battery), CPU governor, load average go into every result, and the panel shows them |
+| No mixed quantities | No ratio between Bend's wall time and Luanti's per-thread sum. FPS is never put next to Luanti (Luanti draws on the GPU, Bend on the CPU) |
+| Timers inside each engine | Bend `IO.now()` around the generation (ms), Luanti a patch around `generateTerrain` (µs). Totals over 100 mapchunks keep the ms rounding under 0.1 % |
 
 ## 7. Open questions to answer next
 
