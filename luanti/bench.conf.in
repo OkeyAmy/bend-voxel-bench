@@ -6,5 +6,7 @@ chunksize = 5
 mg_flags = nocaves,nodungeons,nodecorations,nobiomes,noores,nolight
 mgv7_spflags = nomountains,noridges,nofloatlands,nocaverns
 num_emerge_threads = @THREADS@
+bench_x0 = @X0@
+bench_z0 = @Z0@
 server_announce = false
 enable_mapgen_debug_info = false

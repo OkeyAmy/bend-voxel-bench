@@ -52,3 +52,16 @@ test("LUANTI resolves inside the repo even when imported from another directory"
   const out = execFileSync("node", ["-e", `import(${JSON.stringify(mod)}).then(m => console.log(m.LUANTI))`], { cwd: "/tmp", encoding: "utf8" }).trim();
   assert.equal(out, resolve("luanti/src/bin/luantiserver"));
 });
+
+test("parseChunkTimes checks the area at a moved origin", () => {
+  const s = "BVB_CHUNK -432 -112 368 terrain_us=10 middle_us=0 liquid_us=0 light_us=0\n"
+    + "BVB_CHUNK -32 -112 -32 terrain_us=10 middle_us=0 liquid_us=0 light_us=0";
+  assert.deepEqual(parseChunkTimes(s, -432, 368).outside, ["-32 -112 -32"]);
+});
+
+test("renderConf fills the origin", () => {
+  const conf = renderConf(readFileSync("luanti/bench.conf.in", "utf8"), 1, 42, -432, 368);
+  assert.match(conf, /^bench_x0 = -432$/m);
+  assert.match(conf, /^bench_z0 = 368$/m);
+  assert.doesNotMatch(conf, /@[A-Z0-9]+@/);
+});

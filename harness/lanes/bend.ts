@@ -12,9 +12,10 @@ export function parseBendStdout(stdout: string): number {
   return Number(m[1]);
 }
 
-export async function runBend(threads: number, seed: number, keepDump: boolean): Promise<LaneRun> {
+export async function runBend(threads: number, seed: number, keepDump: boolean, ox = -32, oz = -32): Promise<LaneRun> {
   const dir = mkdtempSync(`${tmpdir()}/bvb-bend-`);
-  const r = await run("build/voxel", ["--threads", String(threads), "--", "mapgen", String(seed), `${dir}/dump.txt`]);
+  const r = await run("build/voxel", ["--threads", String(threads), "--", "mapgen", String(seed), `${dir}/dump.txt`,
+    String(ox), String(oz)]);
   if (r.timedOut || r.code !== 0) {
     return { ok: false, error: r.timedOut ? "timeout" : `exit ${r.code}: ${r.stderr.slice(-500)}`, wallMs: r.wallMs, terrainMs: 0, liquidMs: 0, lightMs: 0, peakKb: r.peakKb };
   }

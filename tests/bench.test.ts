@@ -54,3 +54,21 @@ test("bench rejects bad arguments with exit code 2", () => {
   assert.throws(() => sh(`${BUILD}/voxel`, ["--", "nope"]), (e: any) => e.status === 2);
   assert.throws(() => sh(`${BUILD}/voxel`, ["--", "mapgen", "abc", "x"]), (e: any) => e.status === 2 && /seed must be an integer/.test(e.stderr));
 });
+
+// the race area can move: mapchunks from origin (x0, -112, z0), 5 x 4 x 5 of them
+test("bench dump at another origin (-432, 368) matches Luanti's levels", () => {
+  const dir = mkdtempSync(`${tmpdir()}/bvb-`);
+  sh(`${BUILD}/voxel`, ["--threads", "8", "--", "mapgen", "42", `${dir}/dump.txt`, "-432", "368"]);
+  const lines = readFileSync(`${dir}/dump.txt`, "utf8").trim().split("\n");
+  assert.equal(lines.length, 100);
+  assert.equal(lines[0].split(" ").slice(0, 3).join(" "), "-432 -112 368");
+  const levels = new Map<string, number[]>();
+  for (const line of lines) {
+    const f = line.split(" ");
+    const [x, y, z] = f.slice(0, 3).map(Number);
+    const key = `${x} ${z}`;
+    if (!levels.has(key)) levels.set(key, sh(`${BUILD}/golden`, ["42", String(x), String(z)]).trim().split("\n").map((l) => Number(l.split(" ")[4])));
+    const L = levels.get(key)!;
+    for (let i = 0; i < 6400; i++) assert.equal(`${f[3 + 2 * i]} ${f[4 + 2 * i]}`, counts(L[i], y), `mapchunk ${x} ${y} ${z} column ${i}`);
+  }
+});

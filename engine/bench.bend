@@ -11,23 +11,23 @@ type Tree is Type:
   TLeaf{c: M.Chunk}
   TNode{l: Tree, r: Tree}
 
-# leaf i -> mapchunk cx = i % 5, cz = i / 5 % 5, cy = i / 25
-def B.leaf(hit: Bool, +ws: U32, +i: U32) -> Tree:
+# leaf i -> mapchunk cx = i % 5, cz = i / 5 % 5, cy = i / 25, from origin (ox, -112, oz)
+def B.leaf(hit: Bool, +ws: U32, +ox: U32, +oz: U32, +i: U32) -> Tree:
   match hit:
     case True{}:
-      TLeaf{M.M.chunk(ws, ((80 * (i % 5)) - 32 : U32), ((80 * (i / 25)) - 112 : U32),
-        ((80 * ((i / 5) % 5)) - 32 : U32))}
+      TLeaf{M.M.chunk(ws, ((80 * (i % 5)) + ox : U32), ((80 * (i / 25)) - 112 : U32),
+        ((80 * ((i / 5) % 5)) + oz : U32))}
     case False{}:
       TNil{}
 
 # 2^d leaves from leaf i; leaves at n or past are empty
-def B.gen(+d: Nat, +ws: U32, +i: U32, +n: U32) -> Tree:
+def B.gen(+d: Nat, +ws: U32, +ox: U32, +oz: U32, +i: U32, +n: U32) -> Tree:
   match d:
     case 0n:
-      B.leaf((i < n : U32), ws, i)
+      B.leaf((i < n : U32), ws, ox, oz, i)
     case 1n+p:
       +half = U32.shln(1, p)
-      l r = B.gen(p, ws, i, n) B.gen(p, ws, (i + half : U32), n)
+      l r = B.gen(p, ws, ox, oz, i, n) B.gen(p, ws, ox, oz, (i + half : U32), n)
       TNode{l, r}
 
 # ---- dump: per column, the stone and water block counts in the mapchunk ----
@@ -83,20 +83,24 @@ def D.write(t: Tree, f: File) -> IO(File):
         f2 : File <- D.write(l, f)
         D.write(r, f2)
 
-def B.mapgen(+ws: U32, path: String) -> IO(Unit):
+def B.mapgen(+ws: U32, +ox: U32, +oz: U32, path: String) -> IO(Unit):
   do IO<Unit>:
     +t0 : Nat <- IO.now()
-    tree : Tree = B.gen(7n, ws, 0, 100)
+    tree : Tree = B.gen(7n, ws, ox, oz, 0, 100)
     +t1 : Nat <- IO.now()
     IO.print("mapgen_ms " ++ Nat.show(Nat.sub(t1, t0)))
     f : File <- IO.try(File, File.open(path, "w"))
     f2 : File <- D.write(tree, f)
     File.close(f2)
 
-def B.run.seed(s: Maybe<&2, U32>, path: String) -> IO(Unit):
+# origin argument n (a mapchunk-aligned x or z), -32 by default
+def B.origin(+args: +List<String>, n: Nat) -> U32:
+  Maybe.default(&2, U32, I.I32.read(Maybe.default(&2, String, List.get(&2, String, args, n), "-32")), (0 - 32 : U32))
+
+def B.run.seed(s: Maybe<&2, U32>, +ox: U32, +oz: U32, path: String) -> IO(Unit):
   match s:
     case Some{+ws}:
-      B.mapgen(ws, path)
+      B.mapgen(ws, ox, oz, path)
     case None{}:
       IO.die(Unit, 2, "seed must be an integer")
 
@@ -104,9 +108,10 @@ def B.run.mode(ok: Bool, +args: +List<String>) -> IO(Unit):
   match ok:
     case True{}:
       B.run.seed(I.I32.read(Maybe.default(&2, String, List.get(&2, String, args, 1n), "")),
+        B.origin(args, 3n), B.origin(args, 4n),
         Maybe.default(&2, String, List.get(&2, String, args, 2n), "mapgen_dump.txt"))
     case False{}:
-      IO.die(Unit, 2, "usage: voxel [--threads N] -- mapgen <seed> <dump-path>")
+      IO.die(Unit, 2, "usage: voxel [--threads N] -- mapgen <seed> <dump-path> [x0 z0]")
 
 # args: ["mapgen", seed, dump-path]
 def B.run(+args: +List<String>) -> IO(Unit):

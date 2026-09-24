@@ -11,12 +11,13 @@ export const LUANTI = resolve(ROOT, "luanti/src/bin/luantiserver");
 export type ChunkTimes = { count: number; outside: string[]; terrainUs: number; middleUs: number; liquidUs: number; lightUs: number };
 
 // Sums the BVB_CHUNK lines the timing patch prints, and lists mapchunks outside the area.
-export function parseChunkTimes(stderr: string): ChunkTimes {
+export function parseChunkTimes(stderr: string, ox = -32, oz = -32): ChunkTimes {
   const t: ChunkTimes = { count: 0, outside: [], terrainUs: 0, middleUs: 0, liquidUs: 0, lightUs: 0 };
   const re = /^BVB_CHUNK (-?\d+) (-?\d+) (-?\d+) terrain_us=(\d+) middle_us=(\d+) liquid_us=(\d+) light_us=(\d+)$/gm;
   for (const m of stderr.matchAll(re)) {
     const [x, y, z] = [Number(m[1]), Number(m[2]), Number(m[3])];
-    const inside = x >= -32 && x <= 288 && z >= -32 && z <= 288 && y >= -112 && y <= 128 && (x + 32) % 80 === 0 && (z + 32) % 80 === 0 && (y + 112) % 80 === 0;
+    const inside = x >= ox && x <= ox + 320 && z >= oz && z <= oz + 320 && y >= -112 && y <= 128
+      && (x - ox) % 80 === 0 && (z - oz) % 80 === 0 && (y + 112) % 80 === 0;
     if (!inside) t.outside.push(`${x} ${y} ${z}`);
     t.count++;
     t.terrainUs += Number(m[4]);
@@ -36,9 +37,10 @@ export function parseProbeHeader(text: string): { emergeUs: number; errors: numb
   return { emergeUs: Number(m[1]), errors: Number(m[2]), cancelled: Number(m[3]), passes: Number(m[4]) };
 }
 
-// bench.conf.in with @THREADS@ and @SEED@ filled in
-export function renderConf(template: string, threads: number, seed: number): string {
-  return template.replaceAll("@THREADS@", String(threads)).replaceAll("@SEED@", String(seed));
+// bench.conf.in with @THREADS@, @SEED@, @X0@ and @Z0@ filled in
+export function renderConf(template: string, threads: number, seed: number, ox = -32, oz = -32): string {
+  return template.replaceAll("@THREADS@", String(threads)).replaceAll("@SEED@", String(seed))
+    .replaceAll("@X0@", String(ox)).replaceAll("@Z0@", String(oz));
 }
 
 // the "seed = N" line of a world's map_meta.txt (null when absent)
@@ -46,13 +48,13 @@ export function mapMetaSeed(mapMeta: string): string | null {
   return /^seed = (\d+)$/m.exec(mapMeta)?.[1] ?? null;
 }
 
-export async function runLuanti(threads: number, seed: number, keepDump: boolean): Promise<LaneRun & { chunks: ChunkTimes }> {
+export async function runLuanti(threads: number, seed: number, keepDump: boolean, ox = -32, oz = -32): Promise<LaneRun & { chunks: ChunkTimes }> {
   const dir = mkdtempSync(`${tmpdir()}/bvb-luanti-`);
   const world = `${dir}/world`;
   cpSync(resolve(ROOT, "luanti/world_template"), world, { recursive: true });
-  writeFileSync(`${dir}/bench.conf`, renderConf(readFileSync(resolve(ROOT, "luanti/bench.conf.in"), "utf8"), threads, seed));
+  writeFileSync(`${dir}/bench.conf`, renderConf(readFileSync(resolve(ROOT, "luanti/bench.conf.in"), "utf8"), threads, seed, ox, oz));
   const r = await run(LUANTI, ["--config", `${dir}/bench.conf`, "--world", world, "--gameid", "devtest", "--logfile", `${dir}/debug.txt`], { timeoutMs: 600_000 });
-  const chunks = parseChunkTimes(r.stderr);
+  const chunks = parseChunkTimes(r.stderr, ox, oz);
   const fail = (error: string) => ({ ok: false, error, wallMs: r.wallMs, terrainMs: 0, liquidMs: 0, lightMs: 0, peakKb: r.peakKb, chunks });
   if (r.timedOut) return fail("timeout");
   if (r.code !== 0) return fail(`exit ${r.code}: ${r.stderr.slice(-500)}`);

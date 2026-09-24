@@ -1,7 +1,11 @@
--- bend-voxel-bench probe. Area: mapchunks with node origins x, z = -32 + 80k
--- (k = 0..4) and y = -112 + 80k (k = 0..3), the same 100 as the Bend bench.
-local P1 = {x = -32, y = -112, z = -32}
-local P2 = {x = 367, y = 207, z = 367}
+-- bend-voxel-bench probe. Area: 5 x 4 x 5 mapchunks with node origins
+-- x = X0 + 80k, z = Z0 + 80k (k = 0..4) and y = -112 + 80k (k = 0..3): the same
+-- 100 as the Bend bench. X0, Z0 come from the settings bench_x0, bench_z0
+-- (mapchunk-aligned, default -32).
+local X0 = tonumber(core.settings:get("bench_x0") or "-32")
+local Z0 = tonumber(core.settings:get("bench_z0") or "-32")
+local P1 = {x = X0, y = -112, z = Z0}
+local P2 = {x = X0 + 399, y = 207, z = Z0 + 399}
 local OUT = core.get_worldpath() .. "/bench_probe.txt"
 
 local function cid(name)
@@ -13,7 +17,7 @@ local function export(f)
   local c_stone = cid("mapgen_stone")
   local c_water = cid("mapgen_water_source")
   for cy = 0, 3 do for cz = 0, 4 do for cx = 0, 4 do
-    local x0, y0, z0 = -32 + 80 * cx, -112 + 80 * cy, -32 + 80 * cz
+    local x0, y0, z0 = X0 + 80 * cx, -112 + 80 * cy, Z0 + 80 * cz
     local vm = core.get_voxel_manip()
     local emin, emax = vm:read_from_map({x = x0, y = y0, z = z0}, {x = x0 + 79, y = y0 + 79, z = z0 + 79})
     local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
