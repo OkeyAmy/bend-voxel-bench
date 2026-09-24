@@ -1,0 +1,50 @@
+--- a/src/mapgen/mapgen_v7.cpp	2026-09-24 13:10:21.190357687 +0100
++++ b/src/mapgen/mapgen_v7.cpp	2026-09-24 13:10:21.200350991 +0100
+@@ -13,6 +13,8 @@
+ #include "nodedef.h"
+ #include "voxelalgorithms.h"
+ //#include "profiler.h" // For TimeTaker
++#include <chrono>  // bend-voxel-bench timing patch
++#include <cstdio>
+ #include "settings.h" // For g_settings
+ #include "emerge.h"
+ #include "dungeongen.h"
+@@ -317,8 +319,16 @@
+ 
+ 	blockseed = getBlockSeed2(full_node_min, seed);
+ 
++	// bend-voxel-bench timing patch: per-stage microseconds, one line per mapchunk
++	using bvb_clock = std::chrono::steady_clock;
++	auto bvb_us = [](bvb_clock::time_point a, bvb_clock::time_point b) {
++		return (long long)std::chrono::duration_cast<std::chrono::microseconds>(b - a).count();
++	};
++	auto bvb_t0 = bvb_clock::now();
++
+ 	// Generate base and mountain terrain
+ 	s16 stone_surface_max_y = generateTerrain();
++	auto bvb_t1 = bvb_clock::now();
+ 
+ 	// Create heightmap
+ 	updateHeightmap(node_min, node_max);
+@@ -366,8 +376,10 @@
+ 	if (flags & MG_BIOMES)
+ 		dustTopNodes();
+ 
++	auto bvb_t2 = bvb_clock::now();
+ 	// Update liquids
+ 	updateLiquid(&data->transforming_liquid, full_node_min, full_node_max);
++	auto bvb_t3 = bvb_clock::now();
+ 
+ 	// Calculate lighting
+ 	// Limit floatland shadows
+@@ -377,6 +389,10 @@
+ 	if (flags & MG_LIGHT)
+ 		calcLighting(node_min - v3s16(0, 1, 0), node_max + v3s16(0, 1, 0),
+ 			full_node_min, full_node_max, propagate_shadow);
++	auto bvb_t4 = bvb_clock::now();
++	fprintf(stderr, "BVB_CHUNK %d %d %d terrain_us=%lld middle_us=%lld liquid_us=%lld light_us=%lld\n",
++		node_min.X, node_min.Y, node_min.Z, bvb_us(bvb_t0, bvb_t1), bvb_us(bvb_t1, bvb_t2),
++		bvb_us(bvb_t2, bvb_t3), bvb_us(bvb_t3, bvb_t4));
+ 
+ 	this->generating = false;
+ 
