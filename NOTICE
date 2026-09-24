@@ -1,0 +1,13 @@
+Bend Voxel Bench
+
+engine/noise.bend, engine/mapgen.bend: ports of Luanti 5.17.0 src/noise.cpp
+and src/mapgen/mapgen_v7.cpp, LGPL-2.1-or-later.
+Copyright (C) 2010-2026 Luanti contributors (celeron55, kwolekr, paramat and others).
+
+tools/golden/golden.cpp: verbatim copies of functions from Luanti 5.17.0
+src/noise.cpp and src/noise.h, LGPL-2.1-or-later, same copyright.
+
+luanti/timing.patch: a patch to Luanti 5.17.0 src/mapgen/mapgen_v7.cpp,
+LGPL-2.1-or-later.
+
+Everything else: MIT (LICENSES/MIT.txt).
