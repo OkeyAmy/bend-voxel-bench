@@ -5,6 +5,10 @@
 import Base
 import ./render/bend3d.bend as R
 
+# the race button's state: st 0 idle, 1 racing, 2 done; n mapchunks loaded; sum of their ms
+type RaceSt is Data:
+  RaceSt{st: U32, n: U32, sum: U32}
+
 type Race is Data:
   Race{ok: Bool, luanti: U32, b1: U32, b8: U32, par: U32, commit: String}
 
@@ -102,14 +106,29 @@ def Hud.load.go(none: Bool, +ms: U32) -> String:
 def Hud.load(+ms: U32) -> String:
   Hud.load.go(U32.is_eq(ms, 4294967295), ms)
 
+def Hud.button.go(on: Bool, +rs: RaceSt, +lu: U32, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  match on:
+    case False{}:
+      cells
+    case True{}:
+      RaceSt{_, +n, +sum} = rs
+      Hud.line(108.0, "RACE " ++ U32.show(n) ++ "/25  BEND GEN+MESH " ++ U32.show(sum)
+        ++ " MS  LUANTI C++ TERRAIN " ++ Hud.ms1((lu * 25 : U32)) ++ " MS", x1, y1, cells)
+
+# the race button's line, once it has been pressed
+def Hud.button(+rs: RaceSt, +race: Race, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  RaceSt{+st, _, _} = rs
+  Race{_, +lu, _, _, _, _} = race
+  Hud.button.go((st > 0 : U32), rs, lu, x1, y1, cells)
+
 # the panel: frame ms, build and draw ms, the last new mapchunk's gen + mesh ms,
-# then the race line and the parity line
-def Hud.draw(+race: Race, +frame: U32, +build: U32, +draw: U32, +load: U32, +x1: F32, +y1: F32,
-    cells: R.Cells) -> R.Cells:
+# the race line, the parity line, and the race button's line
+def Hud.draw(+race: Race, +rs: RaceSt, +frame: U32, +build: U32, +draw: U32, +load: U32, +x1: F32,
+    +y1: F32, cells: R.Cells) -> R.Cells:
   +fps = (1000 / R.word((frame > 0 : U32), frame, 1) : U32)
-  +c1 = R.Quad.put(10.0, 10.0, 10.0, 112.0, 760.0, 112.0, 760.0, 10.0, 2000.0, 2765136, 0, 1.0,
+  +c1 = R.Quad.put(10.0, 10.0, 10.0, 136.0, 760.0, 136.0, 760.0, 10.0, 2000.0, 2765136, 0, 1.0,
     x1, y1, cells)
   +c2 = Hud.line(12.0, "FPS " ++ U32.show(fps) ++ "  BUILD " ++ U32.show(build) ++ " MS  DRAW "
     ++ U32.show(draw) ++ " MS", x1, y1, c1)
   +c3 = Hud.line(36.0, "NEW MAPCHUNK GEN+MESH " ++ Hud.load(load), x1, y1, c2)
-  Hud.race(race, x1, y1, c3)
+  Hud.button(rs, race, x1, y1, Hud.race(race, x1, y1, c3))

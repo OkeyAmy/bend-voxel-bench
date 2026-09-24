@@ -84,6 +84,8 @@ sends that whole call tree to the GPU.
 17. **A see-through quad shows its diagonal.** Bend3D's alpha mode blends each triangle separately, so the seam between a quad's two triangles gets blended twice and shows as a dotted line. Draw UI panels opaque.
 18. **Reading a file is three effects:** `File.open` → `File.read(f, max)` → `File.close`, each returning a `Result` (`Done{..}` / `Fail{..}`) to match on. There's no `read_to_string` shortcut.
 
+19. **Fog is cheap in a CPU renderer:** mix each vertex colour towards the sky by horizontal distance, and Bend3D interpolates it across the triangle. Measure distance horizontally, though: 3D distance from a camera 70 blocks up fogged the ground right below it.
+
 ## 6. Harness lessons (not Bend-specific, but found here)
 
 - JavaScript's `String.replace` replaces only the first match. That silently sent Luanti the wrong seed, and 75 % parity exposed it.

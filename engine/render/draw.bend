@@ -8,8 +8,23 @@ def Draw.vert.go(+sp: R.Vec, +c: R.Vec) -> R.Vert:
   R.Vec{r, g, b} = c
   R.Vert{x, y, w, r, g, b}
 
+# fog: the colour mixes towards the horizon sky with horizontal distance,
+# from none at 100 blocks to full at 200 (height above the ground doesn't count)
+# v with its height set to 0
+def Draw.flat(+v: R.Vec) -> R.Vec:
+  R.Vec{x, _, z} = v
+  R.Vec{x, 0.0, z}
+
+def Draw.hdist(+a: R.Vec, +b: R.Vec) -> F32:
+  R.Vec.len(R.Vec.sub(Draw.flat(a), Draw.flat(b)))
+
+def Draw.fogged(+cam: R.Cam, +p: R.Vec, +c: R.Vec) -> R.Vec:
+  R.Cam{eye, _, _, _, _, _, _, _, _, _} = cam
+  +f = R.sat(((Draw.hdist(p, eye) - 100.0) / 100.0 : F32))
+  R.Vec.mix(c, R.Vec{0.525, 0.702, 0.902}, f)
+
 def Draw.vert(+cam: R.Cam, +p: R.Vec, +c: R.Vec) -> R.Vert:
-  Draw.vert.go(R.Cam.proj(cam, p), c)
+  Draw.vert.go(R.Cam.proj(cam, p), Draw.fogged(cam, p, c))
 
 # a b c d as triangles (a b c) and (a c d); mode 1 keeps both windings (diag)
 def Draw.tri2(+a: R.Vert, +b: R.Vert, +c: R.Vert, +d: R.Vert, +m: U32, +x1: F32, +y1: F32,

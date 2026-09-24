@@ -90,11 +90,11 @@ def P.got(+st: S.S.Step, +ms: U32, +prev: U32) -> U32:
   S.S.Step{_, got} = st
   P.got.go(got, ms, prev)
 
-def P.hud(on: Bool, +race: H.Race, +build: U32, +draw: U32, +load: U32, +x1: F32, +y1: F32,
-    cells: R.Cells) -> R.Cells:
+def P.hud(on: Bool, +race: H.Race, +rs: H.RaceSt, +build: U32, +draw: U32, +load: U32, +x1: F32,
+    +y1: F32, cells: R.Cells) -> R.Cells:
   match on:
     case True{}:
-      H.Hud.draw(race, (build + draw : U32), build, draw, load, x1, y1, cells)
+      H.Hud.draw(race, rs, (build + draw : U32), build, draw, load, x1, y1, cells)
     case False{}:
       cells
 
@@ -162,32 +162,83 @@ def P.report(+bs: +List<Nat>, +ds: +List<Nat>, +tris: Nat) -> String:
     ++ Nat.show(P.median(bs)) ++ " draw_ms_median " ++ Nat.show(P.median(ds)) ++ " tris "
     ++ Nat.show(tris)
 
+# race button: drop the world at frame 10, then time the refill of 25 mapchunks
+def P.rs.go(go: Bool, +r: H.RaceSt) -> H.RaceSt:
+  match go:
+    case True{}:
+      H.RaceSt{1, 0, 0}
+    case False{}:
+      r
+
+def P.rs.w(go: Bool, +w: +List<W.Mc>) -> +List<W.Mc>:
+  match go:
+    case True{}:
+      []
+    case False{}:
+      w
+
+def P.rs.idle(+r: H.RaceSt) -> Bool:
+  H.RaceSt{st, _, _} = r
+  U32.is_eq(st, 0)
+
+def P.loaded(+st: S.S.Step) -> Bool:
+  S.S.Step{_, got} = st
+  Maybe.is_some(&2, S.S.Off, got)
+
+def P.rs.fin(done: Bool, +n: U32, +sum: U32) -> IO(H.RaceSt):
+  match done:
+    case True{}:
+      do IO<H.RaceSt>:
+        IO.print("race_done mapchunks " ++ U32.show(n) ++ " bend_ms " ++ U32.show(sum))
+        return H.RaceSt{2, n, sum}
+    case False{}:
+      IO.pure(H.RaceSt, H.RaceSt{1, n, sum})
+
+def P.rs.count(counting: Bool, +r: H.RaceSt, +ms: U32) -> IO(H.RaceSt):
+  match counting:
+    case True{}:
+      H.RaceSt{_, +n, +sum} = r
+      do IO<H.RaceSt>:
+        IO.print("race_load " ++ U32.show(ms))
+        P.rs.fin(U32.is_eq((n + 1 : U32), 25), (n + 1 : U32), (sum + ms : U32))
+    case False{}:
+      IO.pure(H.RaceSt, r)
+
+# after a frame's streaming step: count the load if the race is running
+def P.rs.after(+r: H.RaceSt, +loaded: Bool, +ms: U32) -> IO(H.RaceSt):
+  H.RaceSt{+st, _, _} = r
+  P.rs.count((U32.is_eq(st, 1) && loaded), r, ms)
+
 type Run is Data:
-  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race}
+  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race, btn: Bool}
 
 def P.w(+r: Run) -> U32:
-  Run{w, _, _, _, _, _} = r
+  Run{w, _, _, _, _, _, _} = r
   w
 
 def P.h(+r: Run) -> U32:
-  Run{_, h, _, _, _, _} = r
+  Run{_, h, _, _, _, _, _} = r
   h
 
 def P.m(+r: Run) -> U32:
-  Run{_, _, m, _, _, _} = r
+  Run{_, _, m, _, _, _, _} = r
   m
 
 def P.sc(+r: Run) -> U32:
-  Run{_, _, _, t, _, _} = r
+  Run{_, _, _, t, _, _, _} = r
   t
 
 def P.hudon(+r: Run) -> Bool:
-  Run{_, _, _, _, on, _} = r
+  Run{_, _, _, _, on, _, _} = r
   on
 
 def P.race(+r: Run) -> H.Race:
-  Run{_, _, _, _, _, race} = r
+  Run{_, _, _, _, _, race, _} = r
   race
+
+def P.btn(+r: Run) -> Bool:
+  Run{_, _, _, _, _, _, b} = r
+  b
 
 def P.stw(+st: S.S.Step) -> +List<W.Mc>:
   S.S.Step{w, _} = st
@@ -195,7 +246,7 @@ def P.stw(+st: S.S.Step) -> +List<W.Mc>:
 
 @unsafe
 def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, +bs: +List<Nat>,
-    +ds: +List<Nat>, +lb: U32, +ld: U32, +ll: U32, path: String) -> IO(Unit):
+    +ds: +List<Nat>, +lb: U32, +ld: U32, +ll: U32, +rs: H.RaceSt, path: String) -> IO(Unit):
   match k:
     case 0n:
       (old, used) = last
@@ -209,19 +260,22 @@ def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, 
       do IO<Unit>:
         +t0 : Nat <- IO.now()
         _ : R.Cells = R.Cells.drop(4n, used)
-        +st : S.S.Step = P.next(U32.is_eq(P.sc(run), 2), i, qs)
+        +go : Bool = (P.btn(run) && U32.is_eq(i, 10) && P.rs.idle(rs))
+        +st : S.S.Step = P.next(U32.is_eq(P.sc(run), 2), i, P.rs.w(go, qs))
         +tA : Nat <- IO.now()
-        +ll2 : U32 = P.got(st, U32.from_nat(Nat.sub(tA, t0)), ll)
+        +ms : U32 = U32.from_nat(Nat.sub(tA, t0))
+        +ll2 : U32 = P.got(st, ms, ll)
+        +rs2 : H.RaceSt <- P.rs.after(P.rs.go(go, rs), P.loaded(st), ms)
         +wn : +List<W.Mc> = P.stw(st)
         +x1 : F32 = U32.to_f32((w - 1 : U32))
         +y1 : F32 = U32.to_f32((h - 1 : U32))
-        cells : R.Cells = P.hud(P.hudon(run), P.race(run), lb, ld, ll2, x1, y1,
+        cells : R.Cells = P.hud(P.hudon(run), P.race(run), rs2, lb, ld, ll2, x1, y1,
           P.draw(wn, P.cam(P.sc(run), i, w, h), P.m(run), x1, y1, R.CNil{}))
         +t1 : Nat <- IO.now()
         drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame(U32.is_eq(w, 1280), cells, old))
         +t2 : Nat <- IO.now()
         P.loop(p, wn, run, (i + 1 : U32), drawn, Nat.sub(t1, t0) <> bs, Nat.sub(t2, t1) <> ds,
-          U32.from_nat(Nat.sub(t1, t0)), U32.from_nat(Nat.sub(t2, t1)), ll2, path)
+          U32.from_nat(Nat.sub(t1, t0)), U32.from_nat(Nat.sub(t2, t1)), ll2, rs2, path)
 
 def P.arg(xs: +List<String>, n: Nat) -> String:
   Maybe.default(&2, String, List.get(&2, String, xs, n), "")
@@ -255,8 +309,8 @@ def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
         P.missing(race)
         P.loop(U32.to_nat(P.num(args, 2n)), P.world(sc),
           Run{P.num(args, 3n), P.num(args, 4n), M.word(String.eq(P.arg(args, 6n), "diag"), 1, 0),
-            sc, Bool.not(String.eq(P.arg(args, 6n), "nohud")), race}, 0, (Pix{0}, R.CNil{}), [], [], 0, 0, 4294967295,
-          P.arg(args, 5n))
+            sc, Bool.not(String.eq(P.arg(args, 6n), "nohud")), race, String.eq(P.arg(args, 6n), "race")}, 0,
+          (Pix{0}, R.CNil{}), [], [], 0, 0, 4294967295, H.RaceSt{0, 0, 0}, P.arg(args, 5n))
 
 # args: ["render", scene, frames, w, h, out, diag?]
 @unsafe
