@@ -47,3 +47,12 @@ export function compare(bendText: string, luantiText: string): Parity {
   const percent = columns === 0 ? 0 : ((columns - mismatches) / columns) * 100;
   return { chunks: keys.size, columns, mismatches, percent, missing, sample };
 }
+
+// every lane's dump against the reference lane's (the reference itself is left out)
+export function parityAll(dumps: Map<string, string>, reference: string): Record<string, Parity> {
+  const ref = dumps.get(reference);
+  if (ref === undefined) throw new Error(`no dump for reference lane ${reference}`);
+  const out: Record<string, Parity> = {};
+  for (const [lane, dump] of dumps) if (lane !== reference) out[lane] = compare(dump, ref);
+  return out;
+}

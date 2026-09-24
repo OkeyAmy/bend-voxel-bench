@@ -12,7 +12,8 @@ export function parsePeakKb(stderr: string): number {
 export function run(cmd: string, args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): Promise<Ran> {
   return new Promise((resolve, reject) => {
     const t0 = performance.now();
-    const kid = spawn("/usr/bin/time", ["-v", cmd, ...args], { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] });
+    // own process group, so a timeout kills the measured command too, not just /usr/bin/time
+    const kid = spawn("/usr/bin/time", ["-v", cmd, ...args], { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"], detached: true });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -20,7 +21,7 @@ export function run(cmd: string, args: string[], opts: { cwd?: string; timeoutMs
     kid.stderr.on("data", (d) => (stderr += d));
     const timer = setTimeout(() => {
       timedOut = true;
-      kid.kill("SIGKILL");
+      try { process.kill(-kid.pid!, "SIGKILL"); } catch { kid.kill("SIGKILL"); }
     }, opts.timeoutMs ?? 300_000);
     kid.on("error", reject);
     kid.on("close", (code) => {

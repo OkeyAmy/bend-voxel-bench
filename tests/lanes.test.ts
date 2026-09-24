@@ -43,3 +43,12 @@ test("mapMetaSeed reads the seed Luanti actually used", () => {
   assert.equal(mapMetaSeed("mg_name = v7\nseed = 42\n[end_of_params]\n"), "42");
   assert.equal(mapMetaSeed("mg_name = v7\n"), null);
 });
+
+import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+
+test("LUANTI resolves inside the repo even when imported from another directory", () => {
+  const mod = resolve("harness/lanes/luanti.ts");
+  const out = execFileSync("node", ["-e", `import(${JSON.stringify(mod)}).then(m => console.log(m.LUANTI))`], { cwd: "/tmp", encoding: "utf8" }).trim();
+  assert.equal(out, resolve("luanti/src/bin/luantiserver"));
+});

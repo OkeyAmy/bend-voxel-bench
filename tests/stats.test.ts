@@ -20,3 +20,13 @@ test("parsePeakKb reads GNU time -v output", () => {
   assert.equal(parsePeakKb("\tMaximum resident set size (kbytes): 29160\n"), 29160);
   assert.equal(parsePeakKb("nothing"), 0);
 });
+
+import { run } from "../harness/lib/exec.ts";
+
+// a hung benchmark must not hang the harness: the timeout kills the measured process itself
+test("run() timeout kills the command, not just /usr/bin/time", async () => {
+  const t0 = Date.now();
+  const r = await run("sleep", ["6"], { timeoutMs: 500 });
+  assert.equal(r.timedOut, true);
+  assert.ok(Date.now() - t0 < 2000, `took ${Date.now() - t0} ms`);
+});

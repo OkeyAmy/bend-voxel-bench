@@ -5,7 +5,8 @@ import { resolve } from "node:path";
 import { run } from "../lib/exec.ts";
 import type { LaneRun } from "./bend.ts";
 
-export const LUANTI = resolve("luanti/src/bin/luantiserver");
+const ROOT = resolve(import.meta.dirname, "../..");
+export const LUANTI = resolve(ROOT, "luanti/src/bin/luantiserver");
 
 export type ChunkTimes = { count: number; outside: string[]; terrainUs: number; middleUs: number; liquidUs: number; lightUs: number };
 
@@ -48,8 +49,8 @@ export function mapMetaSeed(mapMeta: string): string | null {
 export async function runLuanti(threads: number, seed: number, keepDump: boolean): Promise<LaneRun & { chunks: ChunkTimes }> {
   const dir = mkdtempSync(`${tmpdir()}/bvb-luanti-`);
   const world = `${dir}/world`;
-  cpSync("luanti/world_template", world, { recursive: true });
-  writeFileSync(`${dir}/bench.conf`, renderConf(readFileSync("luanti/bench.conf.in", "utf8"), threads, seed));
+  cpSync(resolve(ROOT, "luanti/world_template"), world, { recursive: true });
+  writeFileSync(`${dir}/bench.conf`, renderConf(readFileSync(resolve(ROOT, "luanti/bench.conf.in"), "utf8"), threads, seed));
   const r = await run(LUANTI, ["--config", `${dir}/bench.conf`, "--world", world, "--gameid", "devtest", "--logfile", `${dir}/debug.txt`], { timeoutMs: 600_000 });
   const chunks = parseChunkTimes(r.stderr);
   const fail = (error: string) => ({ ok: false, error, wallMs: r.wallMs, terrainMs: 0, liquidMs: 0, lightMs: 0, peakKb: r.peakKb, chunks });

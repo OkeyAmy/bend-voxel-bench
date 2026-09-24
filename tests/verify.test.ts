@@ -35,3 +35,15 @@ test("compare: a mapchunk missing on one side counts all its columns", () => {
 test("compare: a short line is an error, not a silent pass", () => {
   assert.throws(() => compare("1 2 3 4 5", "1 2 3 4 5"), /fields/);
 });
+
+import { parityAll } from "../harness/verify.ts";
+
+test("parityAll checks every lane against the reference, so a bad 8-thread dump is caught", () => {
+  const good = line(-32, -32, -32, () => "30 2");
+  const bad = line(-32, -32, -32, (i) => (i === 5 ? "0 0" : "30 2"));
+  const dumps = new Map([["luanti·1t", good], ["bend·1t", good], ["bend·8t", bad], ["luanti·8t", good]]);
+  const all = parityAll(dumps, "luanti·1t");
+  assert.deepEqual(Object.keys(all).sort(), ["bend·1t", "bend·8t", "luanti·8t"]);
+  assert.equal(all["bend·1t"].mismatches, 0);
+  assert.equal(all["bend·8t"].mismatches, 1);
+});

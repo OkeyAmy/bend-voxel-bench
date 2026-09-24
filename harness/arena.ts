@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { BEND, buildEngine } from "./build.ts";
 import { runBend, type LaneRun } from "./lanes/bend.ts";
 import { runLuanti, LUANTI } from "./lanes/luanti.ts";
-import { compare } from "./verify.ts";
+import { parityAll } from "./verify.ts";
 import { finish, table, machine, versions, commit, type LaneResult, type Results } from "./report.ts";
 
 const PARITY_MIN = 99.99;
@@ -65,10 +65,9 @@ async function race(): Promise<number> {
     }
   }
 
-  const bendLane = `bend·${threads[0]}t`;
-  const luantiLane = `luanti·${threads[0]}t`;
-  const parity = withLuanti && dumps.has(bendLane) && dumps.has(luantiLane)
-    ? { ...compare(dumps.get(bendLane)!, dumps.get(luantiLane)!), bendLane, luantiLane } : null;
+  // every lane's round-0 dump is checked against the first Luanti lane
+  const reference = `luanti·${threads[0]}t`;
+  const parity = withLuanti && dumps.has(reference) ? { reference, lanes: parityAll(dumps, reference) } : null;
 
   const res: Results = { schema: 1, date: new Date().toISOString(), commit: commit(), machine: machine(),
     versions: versions(BEND, withLuanti ? LUANTI : null),
@@ -76,8 +75,8 @@ async function race(): Promise<number> {
     lanes: lanes.map((l) => finish(l.res)), parity,
     notes: [
       "terrain = noise maps + block fill per mapchunk (Luanti: MapgenV7::generateTerrain, summed over mapchunks; Bend: wall time of the whole parallel generation)",
-      "with more than 1 thread, Luanti's terrain sum is thread time, not wall time; compare end-to-end ms for multi-thread lanes",
-      "Luanti end-to-end = emerge_area call to last callback, including its queueing; Bend does no liquid or lighting step in Plan 1, Luanti runs with nolight",
+      "with more than 1 thread, Luanti's terrain number is a sum of per-mapchunk thread time, not wall time, so there is no multi-thread terrain ratio",
+      "Luanti end-to-end = emerge_area call to last callback (terrain, liquid step, queueing, and a re-emerge pass for cancelled blocks); Bend has no liquid step or queue, so it has no end-to-end number",
       "build flags: Luanti 5.17.0 CMake Release (-O3 -funroll-loops -fomit-frame-pointer -fno-math-errno -fno-trapping-math -fno-signed-zeros) + luanti/timing.patch; Bend: bend engine/main.bend -o build/voxel (Bend's own clang flags)",
     ] };
   mkdirSync("results", { recursive: true });
@@ -87,8 +86,11 @@ async function race(): Promise<number> {
   console.log(`\nwrote ${file}`);
 
   const failed = res.lanes.some((l) => l.runs.some((r) => !r.ok));
-  const badParity = parity !== null && parity.percent < PARITY_MIN;
-  if (badParity) console.log(`PARITY BELOW ${PARITY_MIN} %: first mismatches ${JSON.stringify(parity!.sample.slice(0, 5))}`);
+  const low = parity ? Object.entries(parity.lanes).filter(([, q]) => q.percent < PARITY_MIN) : [];
+  for (const [lane, q] of low) console.log(`PARITY BELOW ${PARITY_MIN} % for ${lane}: first mismatches ${JSON.stringify(q.sample.slice(0, 5))}`);
+  const unchecked = withLuanti ? lanes.filter((l) => l.res.id !== reference && !parity?.lanes[l.res.id]).map((l) => l.res.id) : [];
+  if (unchecked.length) console.log(`PARITY NOT CHECKED for ${unchecked.join(", ")} (no round-0 dump)`);
+  const badParity = low.length > 0 || unchecked.length > 0 || (withLuanti && parity === null);
   return failed || badParity ? 1 : 0;
 }
 

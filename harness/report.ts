@@ -10,7 +10,7 @@ export type LaneResult = { id: string; engine: "bend" | "luanti"; threads: numbe
   terrain?: Summary; wall?: Summary; peakMb?: number };
 export type Results = { schema: 1; date: string; commit: string; machine: Record<string, string | number>;
   versions: Record<string, string>; params: { seed: number; runs: number; threads: number[]; area: string };
-  lanes: LaneResult[]; parity: (Parity & { bendLane: string; luantiLane: string }) | null; notes: string[] };
+  lanes: LaneResult[]; parity: { reference: string; lanes: Record<string, Parity> } | null; notes: string[] };
 
 const tryRun = (cmd: string, args: string[]) => {
   try { return execFileSync(cmd, args, { encoding: "utf8" }).trim().split("\n")[0]; } catch { return "unknown"; }
@@ -47,13 +47,20 @@ export function table(res: Results): string {
   for (const l of res.lanes) {
     const lu = res.lanes.find((x) => x.engine === "luanti" && x.threads === l.threads)?.terrain?.median;
     const t = l.terrain;
-    const vs = !t ? "-" : l.engine === "luanti" ? "reference" : lu ? `${(lu / t.median).toFixed(2)}× ${lu / t.median >= 1 ? "faster" : "slower"}` : "no Luanti lane";
+    // with several threads Luanti's terrain number is a sum of per-mapchunk thread time,
+    // not wall time, so a ratio against Bend's wall time would mean nothing
+    const vs = !t ? "-" : l.engine === "luanti" ? "reference" : l.threads > 1 ? "n/a (Luanti: thread time)"
+      : lu ? `${(lu / t.median).toFixed(2)}× ${lu / t.median >= 1 ? "faster" : "slower"}` : "no Luanti lane";
+    // Bend has no liquid step or emerge queue, so it has no end-to-end number to compare
+    const e2e = l.engine === "bend" || !l.wall ? "-" : f1(l.wall.median);
     rows.push([l.id, t ? f1(t.median) : "FAILED", t ? f1(t.min) : "-", t ? f1(t.max) : "-", t ? `${f1(t.spreadPct)} %` : "-",
-      l.wall ? f1(l.wall.median) : "-", l.peakMb ? f1(l.peakMb) : "-", vs, `${l.runs.filter((r) => r.ok).length}/${l.runs.length}`]);
+      e2e, l.peakMb ? f1(l.peakMb) : "-", vs, `${l.runs.filter((r) => r.ok).length}/${l.runs.length}`]);
   }
   const w = rows[0].map((_, i) => Math.max(...rows.map((r) => r[i].length)));
   const lines = rows.map((r) => r.map((c, i) => c.padEnd(w[i])).join("  "));
   const p = res.parity;
-  const par = p ? `parity (${p.bendLane} vs ${p.luantiLane}): ${p.percent.toFixed(4)} % of ${p.columns} columns identical, ${p.mismatches} differ` : "parity: not checked (no Luanti lane)";
-  return [head, "", ...lines, "", par, ...res.notes.map((n) => `note: ${n}`)].join("\n");
+  const par = p ? Object.entries(p.lanes).map(([lane, q]) =>
+    `parity (${lane} vs ${p.reference}): ${q.percent.toFixed(4)} % of ${q.columns} columns identical, ${q.mismatches} differ`)
+    : ["parity: not checked (no Luanti reference dump)"];
+  return [head, "", ...lines, "", ...par, ...res.notes.map((n) => `note: ${n}`)].join("\n");
 }
