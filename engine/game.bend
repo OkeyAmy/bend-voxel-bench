@@ -1,7 +1,7 @@
 # Play mode: fly over the streamed world in a 1280 x 720 window with the race panel.
 #   voxel --threads 8 --gpu off -- play [seed]
-# WASD move, arrows look, Q/E down/up, G races (regenerates the 25 mapchunks
-# around you and times it against Luanti), Esc quits.
+# WASD move, arrows look, Q/E down/up, G runs the live race (Bend and real Luanti,
+# 100 mapchunks around you, harness/live_race.ts), Esc quits.
 # keys-sim runs the same input code without a window, for tests.
 import Base
 import ./i32.bend as I
@@ -12,6 +12,7 @@ import ./render/probe.bend as P
 import ./world/world.bend as W
 import ./world/stream.bend as S
 import ./hud.bend as H
+import ./live.bend as L
 
 # held keys as bits: 1 w, 2 a, 4 s, 8 d, 16 q, 32 e, 64 left, 128 right, 256 up, 512 down, 1024 g
 def G.bit(+code: U32) -> U32:
@@ -120,57 +121,66 @@ def G.sim(+args: +List<String>) -> IO(Unit):
 
 # ---- the window ----
 
-# G pressed this frame (down now, not last frame) starts a race
+# G pressed this frame (runs the live race before the next frame) (down now, not last frame) starts a race
 def G.pressed(+prev: U32, +now: U32) -> Bool:
   (((now .&. 1024) > 0 : U32) && ((prev .&. 1024) < 1 : U32))
 
-# one frame: stream, draw world and panel (host), then the frame (one bang)
+# the banner on the frame shown while the live race runs
+def G.banner(on: Bool, cells: R.Cells) -> R.Cells:
+  match on:
+    case True{}:
+      H.Hud.line(108.0, "RACE RUNNING - BEND AND LUANTI, 100 MAPCHUNKS HERE", 1279.0, 719.0, cells)
+    case False{}:
+      cells
+
+# one frame: (the live race if G was pressed last frame), stream, draw world and
+# panel (host), then the frame (one bang)
 @unsafe
 def G.loop(window: Window, +ws: U32, +s: St, +prev: U32, +w: +List<W.Mc>, +race: H.Race,
-    +rs: H.RaceSt, +lb: U32, +ld: U32, +ll: U32, last: Image & R.Cells) -> IO(Unit):
+    +lv: H.LiveR, +pend: Bool, +lb: U32, +ld: U32, +ll: U32, last: Image & R.Cells) -> IO(Unit):
   (old, used) = last
   do IO<Unit>:
+    +lv2 : H.LiveR <- P.P.live(pend, lv, ws, I.I32.floor(G.x(s)), I.I32.floor(G.z(s)))
     +t0 : Nat <- IO.now()
     _ : R.Cells = R.Cells.drop(4n, used)
-    +go : Bool = (G.pressed(prev, G.held(s)) && P.P.rs.idle(rs))
-    +st : S.S.Step = S.S.step(ws, G.x(s), G.z(s), P.P.rs.w(go, w))
+    +go : Bool = G.pressed(prev, G.held(s))
+    +st : S.S.Step = S.S.step(ws, G.x(s), G.z(s), w)
     +tA : Nat <- IO.now()
     +ms : U32 = U32.from_nat(Nat.sub(tA, t0))
     +ll2 : U32 = P.P.got(st, ms, ll)
-    +rs2 : H.RaceSt <- P.P.rs.after(P.P.rs.go(go, rs), P.P.loaded(st), ms)
     +wn : +List<W.Mc> = P.P.stw(st)
-    cells : R.Cells = P.P.hud(True{}, race, rs2, lb, ld, ll2, 1279.0, 719.0,
-      P.P.draw(wn, 100.0, G.cam(s), 0, 1279.0, 719.0, R.CNil{}))
+    cells : R.Cells = G.banner(go, P.P.hud(True{}, race, lv2, H.RaceSt{0, 0, 0}, lb, ld, ll2, 1279.0, 719.0,
+      P.P.draw(wn, 100.0, G.cam(s), 0, 1279.0, 719.0, R.CNil{})))
     +t1 : Nat <- IO.now()
     drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame1280(cells, old))
     +t2 : Nat <- IO.now()
-    G.shown(drawn, window, ws, s, wn, race, rs2, U32.from_nat(Nat.sub(t1, t0)),
+    G.shown(drawn, window, ws, s, wn, race, lv2, go, U32.from_nat(Nat.sub(t1, t0)),
       U32.from_nat(Nat.sub(t2, t1)), ll2)
 
 # show the frame and read this frame's key events
 @unsafe
 def G.shown(drawn: Image & R.Cells, window: Window, +ws: U32, +s: St, +w: +List<W.Mc>, +race: H.Race,
-    +rs: H.RaceSt, +lb: U32, +ld: U32, +ll: U32) -> IO(Unit):
+    +lv: H.LiveR, +pend: Bool, +lb: U32, +ld: U32, +ll: U32) -> IO(Unit):
   (image, cells) = drawn
   do IO<Unit>:
     shown : Window & Image & List<Event> <- Window.frame(window, image)
-    G.next(shown, cells, ws, s, w, race, rs, lb, ld, ll)
+    G.next(shown, cells, ws, s, w, race, lv, pend, lb, ld, ll)
 
 @unsafe
 def G.next.go(quit: Bool, window: Window, image: Image, cells: R.Cells, +ws: U32, +s: St, +h: U32,
-    +w: +List<W.Mc>, +race: H.Race, +rs: H.RaceSt, +lb: U32, +ld: U32, +ll: U32) -> IO(Unit):
+    +w: +List<W.Mc>, +race: H.Race, +lv: H.LiveR, +pend: Bool, +lb: U32, +ld: U32, +ll: U32) -> IO(Unit):
   match quit:
     case True{}:
       Window.close(window)
     case False{}:
-      G.loop(window, ws, G.move(G.with(s, h)), G.held(s), w, race, rs, lb, ld, ll, (image, cells))
+      G.loop(window, ws, G.move(G.with(s, h)), G.held(s), w, race, lv, pend, lb, ld, ll, (image, cells))
 
 @unsafe
 def G.next(shown: Window & Image & List<Event>, cells: R.Cells, +ws: U32, +s: St, +w: +List<W.Mc>,
-    +race: H.Race, +rs: H.RaceSt, +lb: U32, +ld: U32, +ll: U32) -> IO(Unit):
+    +race: H.Race, +lv: H.LiveR, +pend: Bool, +lb: U32, +ld: U32, +ll: U32) -> IO(Unit):
   (window, image, evs) = shown
   +h = G.keys(evs, G.held(s))
-  G.next.go(U32.is_eq(h, 4294967295), window, image, cells, ws, s, h, w, race, rs, lb, ld, ll)
+  G.next.go(U32.is_eq(h, 4294967295), window, image, cells, ws, s, h, w, race, lv, pend, lb, ld, ll)
 
 def G.seed(+args: +List<String>) -> U32:
   Maybe.default(&2, U32, I.I32.read(Maybe.default(&2, String, List.get(&2, String, args, 1n), "")), 123456789)
@@ -193,4 +203,4 @@ def G.play(+args: +List<String>) -> IO(Unit):
   do IO<Unit>:
     +race : H.Race <- H.Hud.read("out/race.txt")
     window : Window <- IO.try(Window, Window.open("Bend Voxel Bench - race against Luanti", 1280, 720))
-    G.loop(window, ws, G.start(ws), 0, [], race, H.RaceSt{0, 0, 0}, 0, 0, 4294967295, (Pix{0}, R.CNil{}))
+    G.loop(window, ws, G.start(ws), 0, [], race, H.Hud.nolive(), False{}, 0, 0, 4294967295, (Pix{0}, R.CNil{}))

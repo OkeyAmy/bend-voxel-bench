@@ -6,7 +6,8 @@ import { run } from "../lib/exec.ts";
 import type { LaneRun } from "./bend.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
-export const LUANTI = resolve(ROOT, "luanti/src/bin/luantiserver");
+// LUANTI in the environment overrides the path (tests use it to simulate a missing build)
+export const LUANTI = process.env.LUANTI ?? resolve(ROOT, "luanti/src/bin/luantiserver");
 
 export type ChunkTimes = { count: number; outside: string[]; terrainUs: number; middleUs: number; liquidUs: number; lightUs: number };
 

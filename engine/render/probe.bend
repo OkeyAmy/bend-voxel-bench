@@ -12,6 +12,7 @@ import ./view.bend as V
 import ../world/world.bend as W
 import ../world/stream.bend as S
 import ../hud.bend as H
+import ../live.bend as L
 
 # scene hills1: seed 0, the mapchunk at (-31952, -31952), seen from its corner
 def P.hills1() -> +List<Q.Q>:
@@ -90,11 +91,11 @@ def P.got(+st: S.S.Step, +ms: U32, +prev: U32) -> U32:
   S.S.Step{_, got} = st
   P.got.go(got, ms, prev)
 
-def P.hud(on: Bool, +race: H.Race, +rs: H.RaceSt, +build: U32, +draw: U32, +load: U32, +x1: F32,
-    +y1: F32, cells: R.Cells) -> R.Cells:
+def P.hud(on: Bool, +race: H.Race, +lv: H.LiveR, +rs: H.RaceSt, +build: U32, +draw: U32, +load: U32,
+    +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   match on:
     case True{}:
-      H.Hud.draw(race, rs, (build + draw : U32), build, draw, load, x1, y1, cells)
+      H.Hud.draw(race, lv, rs, (build + draw : U32), build, draw, load, x1, y1, cells)
     case False{}:
       cells
 
@@ -210,40 +211,52 @@ def P.rs.after(+r: H.RaceSt, +loaded: Bool, +ms: U32) -> IO(H.RaceSt):
   H.RaceSt{+st, _, _} = r
   P.rs.count((U32.is_eq(st, 1) && loaded), r, ms)
 
+# the live race when go, else the last result
+def P.live(go: Bool, +lv: H.LiveR, +seed: U32, +x: U32, +z: U32) -> IO(H.LiveR):
+  match go:
+    case True{}:
+      L.Live.run(seed, x, z)
+    case False{}:
+      IO.pure(H.LiveR, lv)
+
 type Run is Data:
-  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race, btn: Bool, fog0: F32}
+  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race, btn: Bool, fog0: F32, live: Bool}
 
 def P.w(+r: Run) -> U32:
-  Run{w, _, _, _, _, _, _, _} = r
+  Run{w, _, _, _, _, _, _, _, _} = r
   w
 
 def P.h(+r: Run) -> U32:
-  Run{_, h, _, _, _, _, _, _} = r
+  Run{_, h, _, _, _, _, _, _, _} = r
   h
 
 def P.m(+r: Run) -> U32:
-  Run{_, _, m, _, _, _, _, _} = r
+  Run{_, _, m, _, _, _, _, _, _} = r
   m
 
 def P.sc(+r: Run) -> U32:
-  Run{_, _, _, t, _, _, _, _} = r
+  Run{_, _, _, t, _, _, _, _, _} = r
   t
 
 def P.hudon(+r: Run) -> Bool:
-  Run{_, _, _, _, on, _, _, _} = r
+  Run{_, _, _, _, on, _, _, _, _} = r
   on
 
 def P.race(+r: Run) -> H.Race:
-  Run{_, _, _, _, _, race, _, _} = r
+  Run{_, _, _, _, _, race, _, _, _} = r
   race
 
 def P.btn(+r: Run) -> Bool:
-  Run{_, _, _, _, _, _, b, _} = r
+  Run{_, _, _, _, _, _, b, _, _} = r
   b
 
 def P.fog0(+r: Run) -> F32:
-  Run{_, _, _, _, _, _, _, f} = r
+  Run{_, _, _, _, _, _, _, f, _} = r
   f
+
+def P.liveopt(+r: Run) -> Bool:
+  Run{_, _, _, _, _, _, _, _, l} = r
+  l
 
 # is the option among the render arguments after the output path?
 def P.has(xs: +List<String>, +name: String) -> Bool:
@@ -262,7 +275,7 @@ def P.stw(+st: S.S.Step) -> +List<W.Mc>:
 
 @unsafe
 def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, +bs: +List<Nat>,
-    +ds: +List<Nat>, +lb: U32, +ld: U32, +ll: U32, +rs: H.RaceSt, path: String) -> IO(Unit):
+    +ds: +List<Nat>, +lb: U32, +ld: U32, +ll: U32, +rs: H.RaceSt, +lv: H.LiveR, path: String) -> IO(Unit):
   match k:
     case 0n:
       (old, used) = last
@@ -282,16 +295,18 @@ def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, 
         +ms : U32 = U32.from_nat(Nat.sub(tA, t0))
         +ll2 : U32 = P.got(st, ms, ll)
         +rs2 : H.RaceSt <- P.rs.after(P.rs.go(go, rs), P.loaded(st), ms)
+        +lv2 : H.LiveR <- P.live((P.liveopt(run) && U32.is_eq(i, 5)), lv, P.path.ws(),
+          I.I32.floor(P.path.x(i)), 29990)
         +wn : +List<W.Mc> = P.stw(st)
         +x1 : F32 = U32.to_f32((w - 1 : U32))
         +y1 : F32 = U32.to_f32((h - 1 : U32))
-        cells : R.Cells = P.hud(P.hudon(run), P.race(run), rs2, lb, ld, ll2, x1, y1,
+        cells : R.Cells = P.hud(P.hudon(run), P.race(run), lv2, rs2, lb, ld, ll2, x1, y1,
           P.draw(wn, P.fog0(run), P.cam(P.sc(run), i, w, h), P.m(run), x1, y1, R.CNil{}))
         +t1 : Nat <- IO.now()
         drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame(U32.is_eq(w, 1280), cells, old))
         +t2 : Nat <- IO.now()
         P.loop(p, wn, run, (i + 1 : U32), drawn, Nat.sub(t1, t0) <> bs, Nat.sub(t2, t1) <> ds,
-          U32.from_nat(Nat.sub(t1, t0)), U32.from_nat(Nat.sub(t2, t1)), ll2, rs2, path)
+          U32.from_nat(Nat.sub(t1, t0)), U32.from_nat(Nat.sub(t2, t1)), ll2, rs2, lv2, path)
 
 def P.arg(xs: +List<String>, n: Nat) -> String:
   Maybe.default(&2, String, List.get(&2, String, xs, n), "")
@@ -317,7 +332,7 @@ def P.missing(+race: H.Race) -> IO(Unit):
 def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
   match ok:
     case False{}:
-      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3|path <frames> <640 480|1280 720> <out.ppm> [diag] [nohud] [nofog] [race]")
+      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3|path <frames> <640 480|1280 720> <out.ppm> [diag] [nohud] [nofog] [race] [live]")
     case True{}:
       +sc = M.word(String.eq(P.arg(args, 1n), "hills3"), 1, M.word(String.eq(P.arg(args, 1n), "path"), 2, 0))
       do IO<Unit>:
@@ -326,8 +341,8 @@ def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
         P.loop(U32.to_nat(P.num(args, 2n)), P.world(sc),
           Run{P.num(args, 3n), P.num(args, 4n), M.word(P.opt(args, "diag"), 1, 0),
             sc, Bool.not(P.opt(args, "nohud")), race, P.opt(args, "race"),
-            R.pick(P.opt(args, "nofog"), 1000000.0, 100.0)}, 0,
-          (Pix{0}, R.CNil{}), [], [], 0, 0, 4294967295, H.RaceSt{0, 0, 0}, P.arg(args, 5n))
+            R.pick(P.opt(args, "nofog"), 1000000.0, 100.0), P.opt(args, "live")}, 0,
+          (Pix{0}, R.CNil{}), [], [], 0, 0, 4294967295, H.RaceSt{0, 0, 0}, H.Hud.nolive(), P.arg(args, 5n))
 
 # args: ["render", scene, frames, w, h, out, diag?]
 @unsafe

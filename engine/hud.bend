@@ -4,6 +4,7 @@
 # Bend3D's font has capitals, digits and % / + . , ' - only.
 import Base
 import ./render/bend3d.bend as R
+import ./i32.bend as I
 
 # the race button's state: st 0 idle, 1 racing, 2 done; n mapchunks loaded; sum of their ms
 type RaceSt is Data:
@@ -11,6 +12,14 @@ type RaceSt is Data:
 
 type Race is Data:
   Race{ok: Bool, luanti: U32, b1: U32, b8: U32, par: U32, commit: String}
+
+# a live race's result (out/live_race.txt); ms values x 10; has: a race has run
+type LiveR is Data:
+  LiveR{has: Bool, code: U32, ok: Bool, b1: U32, b8: U32, l1: U32, par: U32, power: String, load: U32,
+    x0: U32, z0: U32}
+
+def Hud.nolive() -> LiveR:
+  LiveR{False{}, 0, False{}, 0, 0, 0, 0, "", 0, 0, 0}
 
 def Hud.none() -> Race:
   Race{False{}, 0, 0, 0, 0, ""}
@@ -38,6 +47,14 @@ def Hud.parse(+txt: String) -> Race:
   +lu = Hud.num(ls, "luanti_us_per_mapchunk")
   Race{(lu > 0 : U32), lu, Hud.num(ls, "bend1_us_per_mapchunk"), Hud.num(ls, "bend8_us_per_mapchunk"),
     Hud.num(ls, "parity_pct"), Hud.val(ls, "commit")}
+
+# a live race's file after the race exited with `code`
+def Hud.live(+code: U32, +txt: String) -> LiveR:
+  +ls = String.lines(txt)
+  LiveR{True{}, code, (U32.is_eq(code, 0) && U32.is_eq(Hud.num(ls, "ok"), 1)), Hud.num(ls, "bend1_ms10"),
+    Hud.num(ls, "bend8_ms10"), Hud.num(ls, "luanti1_ms10"), Hud.num(ls, "parity_pct"), Hud.val(ls, "power"),
+    Hud.num(ls, "load100"), Maybe.default(&2, U32, I.I32.read(Hud.val(ls, "x0")), 0),
+    Maybe.default(&2, U32, I.I32.read(Hud.val(ls, "z0")), 0)}
 
 def Hud.text(r: Result<&1, &1, U32 & String, String>) -> IO(Race):
   match r:
@@ -95,6 +112,45 @@ def Hud.race(+race: Race, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   Race{ok, +lu, +b1, +b8, +par, _} = race
   Hud.race.go(ok, lu, b1, b8, par, x1, y1, cells)
 
+# ms x 10 as "13.5"
+def Hud.ms10(+v: U32) -> String:
+  U32.show((v / 10 : U32)) ++ "." ++ U32.show((v % 10 : U32))
+
+def Hud.power.go(ac: Bool, bat: Bool) -> String:
+  match ac bat:
+    case True{} _:
+      "AC POWER"
+    case False{} True{}:
+      "ON BATTERY"
+    case False{} False{}:
+      "POWER UNKNOWN"
+
+def Hud.power(+p: String) -> String:
+  Hud.power.go(String.eq(p, "ac"), String.eq(p, "battery"))
+
+def Hud.live.lines(ok: Bool, +lv: LiveR, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  match ok:
+    case True{}:
+      LiveR{_, _, _, +b1, +b8, +l1, +par, +pw, +load, +x0, +z0} = lv
+      Hud.line(84.0, "TERRAIN, 100 MAPCHUNKS  SAME BLOCKS " ++ Hud.pct(par) ++ " %  " ++ Hud.power(pw)
+        ++ "  LOAD " ++ Hud.pct(load), x1, y1,
+        Hud.line(60.0, "LIVE RACE AT " ++ I.I32.show(x0) ++ "," ++ I.I32.show(z0) ++ "  BEND 1T " ++ Hud.ms10(b1)
+          ++ " MS  8T " ++ Hud.ms10(b8) ++ " MS  LUANTI C++ 1T " ++ Hud.ms10(l1) ++ " MS", x1, y1, cells))
+    case False{}:
+      Hud.line(60.0, "LIVE RACE FAILED - SEE OUT/LIVE_RACE.LOG", x1, y1, cells)
+
+def Hud.races.go(has: Bool, ok: Bool, +race: Race, +lv: LiveR, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  match has:
+    case True{}:
+      Hud.live.lines(ok, lv, x1, y1, cells)
+    case False{}:
+      Hud.race(race, x1, y1, cells)
+
+# the race lines: the live race once one has run, else the stored race
+def Hud.races(+race: Race, +lv: LiveR, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
+  LiveR{has, _, ok, _, _, _, _, _, _, _, _} = lv
+  Hud.races.go(has, ok, race, lv, x1, y1, cells)
+
 def Hud.load.go(none: Bool, +ms: U32) -> String:
   match none:
     case True{}:
@@ -123,12 +179,12 @@ def Hud.button(+rs: RaceSt, +race: Race, +x1: F32, +y1: F32, cells: R.Cells) -> 
 
 # the panel: frame ms, build and draw ms, the last new mapchunk's gen + mesh ms,
 # the race line, the parity line, and the race button's line
-def Hud.draw(+race: Race, +rs: RaceSt, +frame: U32, +build: U32, +draw: U32, +load: U32, +x1: F32,
+def Hud.draw(+race: Race, +lv: LiveR, +rs: RaceSt, +frame: U32, +build: U32, +draw: U32, +load: U32, +x1: F32,
     +y1: F32, cells: R.Cells) -> R.Cells:
   +fps = (1000 / R.word((frame > 0 : U32), frame, 1) : U32)
-  +c1 = R.Quad.put(10.0, 10.0, 10.0, 136.0, 760.0, 136.0, 760.0, 10.0, 2000.0, 2765136, 0, 1.0,
+  +c1 = R.Quad.put(10.0, 10.0, 10.0, 136.0, 830.0, 136.0, 830.0, 10.0, 2000.0, 2765136, 0, 1.0,
     x1, y1, cells)
   +c2 = Hud.line(12.0, "FPS " ++ U32.show(fps) ++ "  BUILD " ++ U32.show(build) ++ " MS  DRAW "
     ++ U32.show(draw) ++ " MS", x1, y1, c1)
   +c3 = Hud.line(36.0, "NEW MAPCHUNK GEN+MESH " ++ Hud.load(load), x1, y1, c2)
-  Hud.button(rs, race, x1, y1, Hud.race(race, x1, y1, c3))
+  Hud.button(rs, race, x1, y1, Hud.races(race, lv, x1, y1, c3))
