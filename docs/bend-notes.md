@@ -58,6 +58,7 @@ sends that whole call tree to the GPU.
 | JSON, HTTP, TLS | not in the standard library | built in or one package away |
 | Package ecosystem | BendHub is days old | npm, crates.io, PyPI |
 | Stability | 23+ releases in the first week, no ABI stability | stable releases |
+| Running another program | none in Base. `IO.spawn` starts a Bend task, not an OS process. We wrote a custom effect, `Proc.run(cmd)` (`engine/sys/proc.c`, about 20 lines of C, using `system()` on a helper thread) | Python `subprocess`, Node `child_process`, Rust `std::process::Command`, C `posix_spawn` |
 | Vector maths | Bend3D has `add`, `sub`, `scale` (by a number), `dot`, `cross`, `len`, `unit`, `mix`, but no component-wise `mul` | GLM `a * b`, Unity `Vector3.Scale`, Godot `a * b`, three.js `multiply`, glam `a * b`, numpy `a * b` |
 
 ## 5. Traps (each one cost us time)
@@ -92,6 +93,8 @@ sends that whole call tree to the GPU.
 20. **Template (`~`) arguments must be closed:** a lambda passed to `List.any(~..., ~(s => String.eq(s, name)), ...)` can't mention the local `name`. Write the recursion by hand.
 21. **A window handle has exactly one owner.** `Window.frame` hands it back with the image and the events, and the quit branch must be the only other place it goes. Passing it to both "close" and "next frame" is rejected.
 22. **Node's test runner runs test files in parallel by default.** A benchmark test then fights the other tests for the CPU (60 ms instead of 20 ms). Run with `--test-concurrency=1`.
+
+23. **Extending Bend's IO is easy and well documented** (`bend guide effects`): declare `def Proc.run(cmd: String) -> IO(U32)` with `import "./proc.c"` and `import "./proc.js"`, then write the C side with `io_work(w, call, pack)` so blocking work runs on a helper thread. It worked on the first try. The catch is that the C side uses runtime internals with no ABI promise, so it has to be rebuilt and re-checked on every Bend release.
 
 ## 6. Harness lessons (not Bend-specific, but found here)
 
