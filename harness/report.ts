@@ -30,7 +30,7 @@ export function versions(bend: string, luanti: string | null): Record<string, st
 
 export function commit(): string {
   const c = tryRun("git", ["rev-parse", "--short", "HEAD"]);
-  return tryRun("git", ["status", "--porcelain"]) === "" ? c : `${c}-dirty`;
+  return tryRun("git", ["status", "--porcelain", "--untracked-files=no"]) === "" ? c : `${c}-dirty`;
 }
 
 // fills terrain/wall summaries and peak memory from the successful runs
