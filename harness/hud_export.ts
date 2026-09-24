@@ -6,7 +6,7 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 type Lane = { id: string; terrain?: { median: number } };
-type Results = { commit: string; lanes: Lane[];
+type Results = { commit: string; lanes: Lane[]; kind?: string; params?: unknown;
   parity: { percent?: number; lanes?: Record<string, { percent: number }> } | null };
 
 const perChunkUs = (r: Results, id: string): number => {
@@ -27,12 +27,12 @@ export function raceTxt(r: Results): string {
     + `bend8_us_per_mapchunk ${perChunkUs(r, "bend·8t")}\nparity_pct ${parityPct(r)}\ncommit ${r.commit}\n`;
 }
 
-function newest(): string {
-  const root = resolve(import.meta.dirname, "..");
-  const files = readdirSync(`${root}/results`).filter((f) => f.endsWith(".json")).sort().reverse();
+// the newest arena race (never a live race: those are a different area and run count)
+export function newest(dir = resolve(import.meta.dirname, "../results")): string {
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json") && !f.startsWith("live_")).sort().reverse();
   for (const f of files) {
-    const r = JSON.parse(readFileSync(`${root}/results/${f}`, "utf8")) as Results;
-    if (r.lanes.some((l) => l.id === "luanti·1t" && l.terrain) && r.parity) return `${root}/results/${f}`;
+    const r = JSON.parse(readFileSync(`${dir}/${f}`, "utf8")) as Results;
+    if (r.kind !== "live" && r.params && r.lanes.some((l) => l.id === "luanti·1t" && l.terrain) && r.parity) return `${dir}/${f}`;
   }
   throw new Error("no results/*.json with a Luanti lane: run `node harness/arena.ts race` first");
 }

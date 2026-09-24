@@ -1,5 +1,5 @@
 // Luanti lane: one fresh luantiserver process on a fresh world per run.
-import { cpSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { run } from "../lib/exec.ts";
@@ -51,6 +51,11 @@ export function mapMetaSeed(mapMeta: string): string | null {
 
 export async function runLuanti(threads: number, seed: number, keepDump: boolean, ox = -32, oz = -32): Promise<LaneRun & { chunks: ChunkTimes }> {
   const dir = mkdtempSync(`${tmpdir()}/bvb-luanti-`);
+  // /tmp is RAM here: always remove the world
+  try { return await runLuantiIn(dir, threads, seed, keepDump, ox, oz); } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+async function runLuantiIn(dir: string, threads: number, seed: number, keepDump: boolean, ox: number, oz: number): Promise<LaneRun & { chunks: ChunkTimes }> {
   const world = `${dir}/world`;
   cpSync(resolve(ROOT, "luanti/world_template"), world, { recursive: true });
   writeFileSync(`${dir}/bench.conf`, renderConf(readFileSync(resolve(ROOT, "luanti/bench.conf.in"), "utf8"), threads, seed, ox, oz));

@@ -1,6 +1,6 @@
-// node harness/live_race.ts <seed> <x> <z> [--runs 3] [--out out/live_race.txt]
-// The Plan 1 race, here and now: the 5 x 4 x 5 mapchunks around (x, z), snapped to
-// mapchunk origins. Lanes bend·1t, bend·8t, luanti·1t, luanti·8t; 1 warm-up and
+// node harness/live_race.ts <seed> <x> <z> [--runs 3] [--out out/live_race.txt] [--results results]
+// The Plan 1 race, here and now: the 5 x 4 x 5 mapchunks centred on the mapchunk
+// holding (x, z). Paths are relative to the repo root. Lanes bend·1t, bend·8t, luanti·1t, luanti·8t; 1 warm-up and
 // --runs interleaved runs, every run a fresh process; every lane's blocks are
 // checked against luanti·1t. Writes results/live_<date>_<commit>.json and the
 // panel's key-value file. The game runs this when you press G.
@@ -18,7 +18,10 @@ const PARITY_MIN = 99.99;
 // the origin of the mapchunk holding v: -32 + 80k
 export const snap = (v: number): number => Math.floor((v + 32) / 80) * 80 - 32;
 
-type Live = { seed: number; x0: number; z0: number; time: string; conditions: Conditions; lanes: LaneResult[];
+// the origin of the 5 x 5 area centred on the mapchunk holding v
+export const centre = (v: number): number => snap(v) - 160;
+
+type Live = { seed: number; commit?: string; x0: number; z0: number; time: string; conditions: Conditions; lanes: LaneResult[];
   parity: { reference: string; lanes: Record<string, { percent: number }> } | null };
 
 const ms10 = (v: number | undefined) => (v === undefined ? 0 : Math.round(v * 10));
@@ -35,7 +38,7 @@ export function liveTxt(r: Live): string {
     `luanti1_ms10 ${ms10(lane("luanti·1t")?.terrain?.median)}`,
     `luanti8_e2e_ms10 ${ms10(lane("luanti·8t")?.wall?.median)}`,
     `parity_pct ${Math.floor(par * 100)}`,
-    `power ${r.conditions.power}`, `load100 ${Math.round(r.conditions.load1 * 100)}`,
+    `power ${r.conditions.power}`, `load100 ${r.conditions.load1 < 0 ? "unknown" : Math.round(r.conditions.load1 * 100)}`,
     `governor ${r.conditions.governor}`, `time ${r.time}`, `ok ${ok ? 1 : 0}`, "",
   ].join("\n");
 }
@@ -47,11 +50,12 @@ async function main(): Promise<number> {
   const [seed, x, z] = process.argv.slice(2, 5).map(Number);
   const runs = Number(flag("--runs", "3"));
   const out = flag("--out", "out/live_race.txt");
+  const resultsDir = flag("--results", "results");
   if (![seed, x, z].every(Number.isInteger) || !Number.isInteger(runs) || runs < 1) {
     console.error("usage: node harness/live_race.ts <seed> <x> <z> [--runs 3] [--out path]");
     return 2;
   }
-  const x0 = snap(x), z0 = snap(z);
+  const x0 = centre(x), z0 = centre(z);
   const cond = conditions(); // before the race, so the race's own load isn't counted
   buildEngine();
   type Lane = { res: LaneResult; go: (keep: boolean) => Promise<LaneRun> };
@@ -74,9 +78,9 @@ async function main(): Promise<number> {
   const live: Live = { seed, x0, z0, time: new Date().toISOString(), conditions: cond,
     lanes: lanes.map((l) => finish(l.res)), parity };
   const txt = liveTxt(live);
-  mkdirSync("results", { recursive: true });
-  writeFileSync(`results/live_${live.time.slice(0, 19).replace(/:/g, "-")}_${commit()}.json`,
-    JSON.stringify({ schema: 1, kind: "live", ...live }, null, 2));
+  mkdirSync(resultsDir, { recursive: true });
+  writeFileSync(`${resultsDir}/live_${live.time.slice(0, 19).replace(/:/g, "-")}_${commit()}.json`,
+    JSON.stringify({ schema: 1, kind: "live", commit: commit(), ...live }, null, 2));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, txt);
   process.stdout.write(txt);

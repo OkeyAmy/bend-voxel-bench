@@ -14,12 +14,21 @@ type Race is Data:
   Race{ok: Bool, luanti: U32, b1: U32, b8: U32, par: U32, commit: String}
 
 # a live race's result (out/live_race.txt); ms values x 10; has: a race has run
+# load: x 100, or 4294967295 when unknown
 type LiveR is Data:
   LiveR{has: Bool, code: U32, ok: Bool, b1: U32, b8: U32, l1: U32, par: U32, power: String, load: U32,
-    x0: U32, z0: U32}
+    x0: U32, z0: U32, gov: String}
 
 def Hud.nolive() -> LiveR:
-  LiveR{False{}, 0, False{}, 0, 0, 0, 0, "", 0, 0, 0}
+  LiveR{False{}, 0, False{}, 0, 0, 0, 0, "", 0, 0, 0, ""}
+
+# the font has capitals only
+def Hud.upper(s: String) -> String:
+  match s:
+    case SNil{}:
+      SNil{}
+    case SCon{h, t}:
+      SCon{Char.to_upper(h), Hud.upper(t)}
 
 def Hud.none() -> Race:
   Race{False{}, 0, 0, 0, 0, ""}
@@ -53,8 +62,9 @@ def Hud.live(+code: U32, +txt: String) -> LiveR:
   +ls = String.lines(txt)
   LiveR{True{}, code, (U32.is_eq(code, 0) && U32.is_eq(Hud.num(ls, "ok"), 1)), Hud.num(ls, "bend1_ms10"),
     Hud.num(ls, "bend8_ms10"), Hud.num(ls, "luanti1_ms10"), Hud.num(ls, "parity_pct"), Hud.val(ls, "power"),
-    Hud.num(ls, "load100"), Maybe.default(&2, U32, I.I32.read(Hud.val(ls, "x0")), 0),
-    Maybe.default(&2, U32, I.I32.read(Hud.val(ls, "z0")), 0)}
+    Maybe.default(&2, U32, U32.read(Hud.val(ls, "load100")), 4294967295),
+    Maybe.default(&2, U32, I.I32.read(Hud.val(ls, "x0")), 0),
+    Maybe.default(&2, U32, I.I32.read(Hud.val(ls, "z0")), 0), Hud.val(ls, "governor")}
 
 def Hud.text(r: Result<&1, &1, U32 & String, String>) -> IO(Race):
   match r:
@@ -98,19 +108,31 @@ def Hud.pct(+p: U32) -> String:
 def Hud.line(+y: F32, s: String, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   R.Text.put(20.0, y, 18.0, 0, 16777215, s, x1, y1, cells)
 
-def Hud.race.go(ok: Bool, +lu: U32, +b1: U32, +b8: U32, +par: U32, +x1: F32, +y1: F32,
+# the stored race (out/race.txt), labelled with its commit so it can't pass as live
+def Hud.race.go(ok: Bool, +lu: U32, +b1: U32, +b8: U32, +par: U32, +commit: String, +x1: F32, +y1: F32,
     cells: R.Cells) -> R.Cells:
   match ok:
     case True{}:
-      Hud.line(84.0, "SAME BLOCKS AS LUANTI " ++ Hud.pct(par) ++ " %", x1, y1,
-        Hud.line(60.0, "RACE PER MAPCHUNK  BEND " ++ Hud.ms1(b1) ++ " MS  8T " ++ Hud.ms1(b8)
-          ++ " MS  LUANTI C++ " ++ Hud.ms1(lu) ++ " MS", x1, y1, cells))
+      Hud.line(84.0, "SAME BLOCKS AS LUANTI " ++ Hud.pct(par) ++ " %  - PRESS G FOR A LIVE RACE HERE", x1, y1,
+        Hud.line(60.0, "STORED RACE " ++ Hud.upper(commit) ++ "  PER MAPCHUNK  BEND " ++ Hud.ms1(b1) ++ " MS  8T "
+          ++ Hud.ms1(b8) ++ " MS  LUANTI C++ " ++ Hud.ms1(lu) ++ " MS", x1, y1, cells))
     case False{}:
       Hud.line(60.0, "LUANTI - RUN THE RACE FIRST", x1, y1, cells)
 
 def Hud.race(+race: Race, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
-  Race{ok, +lu, +b1, +b8, +par, _} = race
-  Hud.race.go(ok, lu, b1, b8, par, x1, y1, cells)
+  Race{ok, +lu, +b1, +b8, +par, +commit} = race
+  Hud.race.go(ok, lu, b1, b8, par, commit, x1, y1, cells)
+
+def Hud.load100.go(unknown: Bool, +v: U32) -> String:
+  match unknown:
+    case True{}:
+      "UNKNOWN"
+    case False{}:
+      Hud.pct(v)
+
+# load x 100 as "1.62", or UNKNOWN
+def Hud.load100(+v: U32) -> String:
+  Hud.load100.go(U32.is_eq(v, 4294967295), v)
 
 # ms x 10 as "13.5"
 def Hud.ms10(+v: U32) -> String:
@@ -131,9 +153,9 @@ def Hud.power(+p: String) -> String:
 def Hud.live.lines(ok: Bool, +lv: LiveR, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
   match ok:
     case True{}:
-      LiveR{_, _, _, +b1, +b8, +l1, +par, +pw, +load, +x0, +z0} = lv
+      LiveR{_, _, _, +b1, +b8, +l1, +par, +pw, +load, +x0, +z0, +gov} = lv
       Hud.line(84.0, "TERRAIN, 100 MAPCHUNKS  SAME BLOCKS " ++ Hud.pct(par) ++ " %  " ++ Hud.power(pw)
-        ++ "  LOAD " ++ Hud.pct(load), x1, y1,
+        ++ "  LOAD " ++ Hud.load100(load) ++ "  " ++ Hud.upper(gov), x1, y1,
         Hud.line(60.0, "LIVE RACE AT " ++ I.I32.show(x0) ++ "," ++ I.I32.show(z0) ++ "  BEND 1T " ++ Hud.ms10(b1)
           ++ " MS  8T " ++ Hud.ms10(b8) ++ " MS  LUANTI C++ 1T " ++ Hud.ms10(l1) ++ " MS", x1, y1, cells))
     case False{}:
@@ -148,7 +170,7 @@ def Hud.races.go(has: Bool, ok: Bool, +race: Race, +lv: LiveR, +x1: F32, +y1: F3
 
 # the race lines: the live race once one has run, else the stored race
 def Hud.races(+race: Race, +lv: LiveR, +x1: F32, +y1: F32, cells: R.Cells) -> R.Cells:
-  LiveR{has, _, ok, _, _, _, _, _, _, _, _} = lv
+  LiveR{has, _, ok, _, _, _, _, _, _, _, _, _} = lv
   Hud.races.go(has, ok, race, lv, x1, y1, cells)
 
 def Hud.load.go(none: Bool, +ms: U32) -> String:
@@ -182,7 +204,7 @@ def Hud.button(+rs: RaceSt, +race: Race, +x1: F32, +y1: F32, cells: R.Cells) -> 
 def Hud.draw(+race: Race, +lv: LiveR, +rs: RaceSt, +frame: U32, +build: U32, +draw: U32, +load: U32, +x1: F32,
     +y1: F32, cells: R.Cells) -> R.Cells:
   +fps = (1000 / R.word((frame > 0 : U32), frame, 1) : U32)
-  +c1 = R.Quad.put(10.0, 10.0, 10.0, 136.0, 830.0, 136.0, 830.0, 10.0, 2000.0, 2765136, 0, 1.0,
+  +c1 = R.Quad.put(10.0, 10.0, 10.0, 136.0, 900.0, 136.0, 900.0, 10.0, 2000.0, 2765136, 0, 1.0,
     x1, y1, cells)
   +c2 = Hud.line(12.0, "FPS " ++ U32.show(fps) ++ "  BUILD " ++ U32.show(build) ++ " MS  DRAW "
     ++ U32.show(draw) ++ " MS", x1, y1, c1)

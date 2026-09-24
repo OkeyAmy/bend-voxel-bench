@@ -30,7 +30,7 @@ def Live.opened(+code: U32, r: Result<&1, &1, U32 & String, File>) -> IO(H.LiveR
 # run the race (the program pauses meanwhile), print its exit code, read the result
 def Live.run(+seed: U32, +x: U32, +z: U32) -> IO(H.LiveR):
   do IO<H.LiveR>:
-    +code : U32 <- P.Proc.run("rm -f out/live_race.txt; node harness/live_race.ts " ++ I.I32.show(seed) ++ " "
+    +code : U32 <- P.Proc.run("mkdir -p out; rm -f out/live_race.txt; node harness/live_race.ts " ++ I.I32.show(seed) ++ " "
       ++ I.I32.show(x) ++ " " ++ I.I32.show(z) ++ " > out/live_race.log 2>&1")
     IO.print("live_race exit " ++ U32.show(code))
     r : Result<&1, &1, U32 & String, File> <- File.open("out/live_race.txt", "r")

@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, copyFileSync, rmSync, existsSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { raceTxt } from "../harness/hud_export.ts";
+import { raceTxt, newest } from "../harness/hud_export.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { buildEngine, BUILD } from "../harness/build.ts";
 import { readPpm } from "./lib/ppm.ts";
 
@@ -57,4 +58,20 @@ test("a missing race file is reported and the frame still renders", () => {
     if (saved) renameSync("out/race.txt.aside", "out/race.txt");
     else rmSync("out/race.txt", { force: true });
   }
+});
+
+// a live race is not the stored race: newest() must pick the arena race even when a live one is newer
+test("hud_export picks the newest arena race, never a live race", () => {
+  const dir = mkdtempSync(`${tmpdir()}/bvb-h-`);
+  const arena = JSON.parse(readFileSync("tests/fixtures/race-results.json", "utf8"));
+  writeFileSync(`${dir}/2026-09-24T12-00-00_aaaaaaa.json`, JSON.stringify({ ...arena, params: { seed: 42 } }));
+  writeFileSync(`${dir}/live_2026-09-24T23-00-00_bbbbbbb.json`, JSON.stringify({ schema: 1, kind: "live", ...arena }));
+  assert.equal(newest(dir), `${dir}/2026-09-24T12-00-00_aaaaaaa.json`);
+});
+
+test("the stored race is labelled with its commit on start", () => {
+  const dir = mkdtempSync(`${tmpdir()}/bvb-h-`);
+  execFileSync("node", ["harness/hud_export.ts", "tests/fixtures/race-results.json", "out/race.txt"]);
+  const out = render(["path", "2", "1280", "720", `${dir}/a.ppm`]);
+  assert.match(out, /^hud: stored race 6c3dcc9$/m);
 });

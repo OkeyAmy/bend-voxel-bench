@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { liveTxt, snap } from "../harness/live_race.ts";
+import { liveTxt, snap, centre } from "../harness/live_race.ts";
 
 // origins are -32 + 80k: 0 is in the mapchunk from -32, -33 in the one from -112
 test("snap puts a coordinate on its mapchunk origin", () => {
@@ -33,9 +33,25 @@ test("liveTxt: the panel's numbers for a finished live race", () => {
 
 test("a real live race at seed 42 around (0, 0), 1 run", () => {
   const dir = mkdtempSync(`${tmpdir()}/bvb-live-`);
-  execFileSync("node", ["harness/live_race.ts", "42", "0", "0", "--runs", "1", "--out", `${dir}/live.txt`], { stdio: "inherit" });
+  execFileSync("node", ["harness/live_race.ts", "42", "0", "0", "--runs", "1", "--out", `${dir}/live.txt`,
+    "--results", `${dir}/results`], { stdio: "inherit" });
   const txt = readFileSync(`${dir}/live.txt`, "utf8");
-  assert.match(txt, /^x0 -32$/m);
+  assert.match(txt, /^x0 -192$/m);
   assert.match(txt, /^parity_pct 10000$/m);
   assert.match(txt, /^ok 1$/m);
+});
+
+// the race area is centred on the player: the player's mapchunk is the middle of the 5 x 5
+test("centre: the area's origin is 2 mapchunks before the player's", () => {
+  assert.equal(centre(0), -192);
+  assert.equal(centre(-30100), -30272);
+});
+
+test("liveTxt: an unknown load is written as unknown, not a number", () => {
+  const txt = liveTxt({
+    seed: 1, x0: -192, z0: -192, time: "t", conditions: { power: "unknown", governor: "unknown", load1: -1 },
+    lanes: [], parity: null,
+  } as any);
+  assert.match(txt, /^load100 unknown$/m);
+  assert.match(txt, /^ok 0$/m);
 });

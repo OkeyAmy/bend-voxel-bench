@@ -41,3 +41,19 @@ test("live option with Luanti missing: a non-zero exit, and the frame still rend
   assert.ok(m && Number(m[1]) !== 0, out);
   assert.match(out, /^frame_ms_median \d+/m);
 });
+
+import { existsSync, renameSync, rmSync } from "node:fs";
+
+// a fresh checkout has no out/ (it's gitignored): G must still work
+test("live race works without an out/ directory", () => {
+  const dir = mkdtempSync(`${tmpdir()}/bvb-lp-`);
+  renameSync("out", "out.aside");
+  try {
+    const out = render(["path", "8", "1280", "720", `${dir}/c.ppm`, "live"]);
+    assert.match(out, /^live_race exit 0$/m);
+    assert.equal(existsSync("out/live_race.txt"), true);
+  } finally {
+    rmSync("out", { recursive: true, force: true });
+    renameSync("out.aside", "out");
+  }
+});

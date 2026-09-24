@@ -317,16 +317,16 @@ def P.num(xs: +List<String>, n: Nat) -> U32:
 def P.size_ok(+w: U32, +h: U32) -> Bool:
   ((U32.is_eq(w, 640) && U32.is_eq(h, 480)) || (U32.is_eq(w, 1280) && U32.is_eq(h, 720)))
 
-def P.missing.go(ok: Bool) -> IO(Unit):
+def P.missing.go(ok: Bool, +commit: String) -> IO(Unit):
   match ok:
     case True{}:
-      IO.pure(Unit, Unit{})
+      IO.print("hud: stored race " ++ commit)
     case False{}:
       IO.print("hud: race file missing")
 
 def P.missing(+race: H.Race) -> IO(Unit):
-  H.Race{ok, _, _, _, _, _} = race
-  P.missing.go(ok)
+  H.Race{ok, _, _, _, _, +commit} = race
+  P.missing.go(ok, commit)
 
 @unsafe
 def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):

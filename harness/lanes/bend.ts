@@ -1,5 +1,5 @@
 // Bend lane: one fresh process of build/voxel per run.
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { run } from "../lib/exec.ts";
 
@@ -14,6 +14,11 @@ export function parseBendStdout(stdout: string): number {
 
 export async function runBend(threads: number, seed: number, keepDump: boolean, ox = -32, oz = -32): Promise<LaneRun> {
   const dir = mkdtempSync(`${tmpdir()}/bvb-bend-`);
+  // /tmp is RAM here: always remove the dump directory
+  try { return await runBendIn(dir, threads, seed, keepDump, ox, oz); } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+async function runBendIn(dir: string, threads: number, seed: number, keepDump: boolean, ox: number, oz: number): Promise<LaneRun> {
   const r = await run("build/voxel", ["--threads", String(threads), "--", "mapgen", String(seed), `${dir}/dump.txt`,
     String(ox), String(oz)]);
   if (r.timedOut || r.code !== 0) {
