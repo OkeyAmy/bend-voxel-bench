@@ -46,7 +46,7 @@ TERRAIN, 100 MAPCHUNKS  SAME BLOCKS 100.00 %  AC POWER  LOAD 1.62
   background programs make the numbers slower and noisier.
 
 Before your first G, the race lines show the stored race from `out/race.txt`.
-The race numbers come from `out/race.txt`. Make it with:
+To make `out/race.txt` (the stored race):
 
 ```sh
 ./luanti/build.sh                                  # once: Luanti 5.17.0 + timing patch
