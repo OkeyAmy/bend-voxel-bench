@@ -26,6 +26,7 @@ sends that whole call tree to the GPU.
 | Same, 3 × 3 mapchunks | 21 ms + 41 ms | — | About 16 FPS, so it needs culling and LOD (Plan 2a Task 4) |
 | Renderer in the engine, mesh cached, 1 mapchunk, 640 × 480 | 1 ms build + 10 ms draw | — | Caching world-space quads leaves only projection per frame |
 | Same at 1280 × 720 | 2 ms + 13 ms (≈ 66 FPS) | — | 3× the pixels costs +4 ms: triangles, not pixels, set the cost |
+| 3 × 3 mapchunks with border faces, 640 × 480 | 14 ms build + 62 ms draw (≈ 13 FPS), 30,916 triangles | — | Needs culling and LOD next |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
 
@@ -66,6 +67,10 @@ sends that whole call tree to the GPU.
 
 9. **Frame sizes are compile-time.** Bend3D's `Frame.show` takes the width and height as `~` templates, so each screen size is its own compiled function (`V.frame640`, `V.frame1280`). You can't pick a size at runtime without writing a branch per size.
 10. **Comparator arguments for `List.sort` must be plain, not `+`.** `def le(a: Nat, b: Nat)`: a `+a` parameter changes the function's type and the template no longer fits.
+
+11. **A type error can freeze the whole computer.** To print "cannot infer", the checker expands the offending term in full, and a term that uses a value twice per step doubles at every step. A 17-line file needs 6.8 MB of error text at `n = 18` and passes 2 GB at `n = 22`. In our game a missing annotation on `+w1 = Mc{...} <> w` froze the laptop and it had to be hard-rebooted. The checker has no work limit (Lean has `maxHeartbeats`, TypeScript and Rust have depth limits). Filed as **bendlang/bend#1041**. What we do now: every `bend` call runs under `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=0 -- timeout ...` (see `harness/build.ts`), and a cons in a `let` gets a type annotation on the whole expression.
+
+12. **A module's identity is the spelling of its import path.** If `render/probe.bend` imports `./mesh.bend` and `world/world.bend` imports `../render/mesh.bend`, then checking `probe.bend` on its own fails with "one namespace per file ... is both 'mesh' and '../render/mesh'", because `render/../render` isn't collapsed. Checking from the program root (`engine/main.bend`) works. Check whole programs from their root.
 
 ## 6. Harness lessons (not Bend-specific, but found here)
 

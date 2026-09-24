@@ -9,15 +9,46 @@ import ./bend3d.bend as R
 import ./mesh.bend as Q
 import ./draw.bend as D
 import ./view.bend as V
+import ../world/world.bend as W
 
 # scene hills1: seed 0, the mapchunk at (-31952, -31952), seen from its corner
 def P.hills1() -> +List<Q.Q>:
   Q.Mesh.chunk(M.M.heights(0, (0.0 - 31952.0 : F32), (0.0 - 31952.0 : F32)),
     (0 - 31952 : U32), (0 - 31952 : U32), [], [])
 
-def P.cam1(+i: U32, +w: U32, +h: U32) -> R.Cam:
-  V.V.cam((0.0 - 31965.0 : F32), 48.0, (0.0 - 31965.0 : F32),
-    (0.785 + 0.01 * U32.to_f32(i) : F32), (0.0 - 0.42 : F32), w, h)
+# scene hills3: seed 123456789, 3 x 3 mapchunks around (-30032, 29968), loaded
+# north-west first so each one finds its west and north neighbours
+def P.world3() -> +List<W.Mc>:
+  +s = {123456789 : U32}
+  W.World.load(s, (0 - 29952 : U32), 30048, W.World.load(s, (0 - 30032 : U32), 30048,
+    W.World.load(s, (0 - 30112 : U32), 30048, W.World.load(s, (0 - 29952 : U32), 29968,
+    W.World.load(s, (0 - 30032 : U32), 29968, W.World.load(s, (0 - 30112 : U32), 29968,
+    W.World.load(s, (0 - 29952 : U32), 29888, W.World.load(s, (0 - 30032 : U32), 29888,
+    W.World.load(s, (0 - 30112 : U32), 29888, [])))))))))
+
+# every loaded mapchunk's quads in one list
+def P.flat(w: +List<W.Mc>) -> +List<Q.Q>:
+  match w:
+    case Con{W.Mc{_, _, _, +qs}, t}:
+      List.append(&2, Q.Q, qs, P.flat(t))
+    case Nil{}:
+      []
+
+def P.scene(three: Bool) -> +List<Q.Q>:
+  match three:
+    case True{}:
+      P.flat(P.world3())
+    case False{}:
+      P.hills1()
+
+def P.cam.pick(three: Bool, +i: U32, +w: U32, +h: U32) -> R.Cam:
+  match three:
+    case True{}:
+      V.V.cam((0.0 - 30130.0 : F32), 60.0, 29870.0, (0.785 + 0.01 * U32.to_f32(i) : F32),
+        (0.0 - 0.35 : F32), w, h)
+    case False{}:
+      V.V.cam((0.0 - 31965.0 : F32), 48.0, (0.0 - 31965.0 : F32),
+        (0.785 + 0.01 * U32.to_f32(i) : F32), (0.0 - 0.42 : F32), w, h)
 
 def P.le(a: Nat, b: Nat) -> Bool:
   Nat.is_le(a, b)
@@ -39,7 +70,7 @@ def P.report(+bs: +List<Nat>, +ds: +List<Nat>, +tris: Nat) -> String:
     ++ Nat.show(tris)
 
 type Run is Data:
-  Run{w: U32, h: U32, m: U32, frames: U32}
+  Run{w: U32, h: U32, m: U32, three: Bool}
 
 def P.w(+r: Run) -> U32:
   Run{w, _, _, _} = r
@@ -52,6 +83,10 @@ def P.h(+r: Run) -> U32:
 def P.m(+r: Run) -> U32:
   Run{_, _, m, _} = r
   m
+
+def P.three(+r: Run) -> Bool:
+  Run{_, _, _, t} = r
+  t
 
 @unsafe
 def P.loop(k: Nat, +qs: +List<Q.Q>, +run: Run, +i: U32, last: Image & R.Cells, +bs: +List<Nat>,
@@ -69,7 +104,7 @@ def P.loop(k: Nat, +qs: +List<Q.Q>, +run: Run, +i: U32, last: Image & R.Cells, +
       do IO<Unit>:
         +t0 : Nat <- IO.now()
         _ : R.Cells = R.Cells.drop(4n, used)
-        cells : R.Cells = D.Draw.quads(qs, P.cam1(i, w, h), P.m(run), U32.to_f32((w - 1 : U32)),
+        cells : R.Cells = D.Draw.quads(qs, P.cam.pick(P.three(run), i, w, h), P.m(run), U32.to_f32((w - 1 : U32)),
           U32.to_f32((h - 1 : U32)), R.CNil{})
         +t1 : Nat <- IO.now()
         drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame(U32.is_eq(w, 1280), cells, old))
@@ -89,14 +124,15 @@ def P.size_ok(+w: U32, +h: U32) -> Bool:
 def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
   match ok:
     case False{}:
-      IO.die(Unit, 2, "usage: voxel -- render hills1 <frames> <640 480|1280 720> <out.ppm> [diag]")
+      IO.die(Unit, 2, "usage: voxel -- render hills1|hills3 <frames> <640 480|1280 720> <out.ppm> [diag]")
     case True{}:
-      P.loop(U32.to_nat(P.num(args, 2n)), P.hills1(),
+      +three = String.eq(P.arg(args, 1n), "hills3")
+      P.loop(U32.to_nat(P.num(args, 2n)), P.scene(three),
         Run{P.num(args, 3n), P.num(args, 4n), M.word(String.eq(P.arg(args, 6n), "diag"), 1, 0),
-          P.num(args, 2n)}, 0, (Pix{0}, R.CNil{}), [], [], P.arg(args, 5n))
+          three}, 0, (Pix{0}, R.CNil{}), [], [], P.arg(args, 5n))
 
 # args: ["render", scene, frames, w, h, out, diag?]
 @unsafe
 def P.run(+args: +List<String>) -> IO(Unit):
-  P.go((String.eq(P.arg(args, 1n), "hills1") && P.size_ok(P.num(args, 3n), P.num(args, 4n))
+  P.go(((String.eq(P.arg(args, 1n), "hills1") || String.eq(P.arg(args, 1n), "hills3")) && P.size_ok(P.num(args, 3n), P.num(args, 4n))
     && (P.num(args, 2n) > 0 : U32)), args)

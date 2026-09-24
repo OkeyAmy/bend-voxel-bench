@@ -53,3 +53,21 @@ test("gap test: no sky showing through terrain compared with both-winding render
   render(["hills1", "1", "640", "480", `${dir}/d.ppm`, "diag"]);
   assert.ok(skyWhereTerrain(readPpm(`${dir}/n.ppm`).px, readPpm(`${dir}/d.ppm`).px) <= 5);
 });
+
+// 3 x 3 mapchunks (seed 123456789 around -30032, 29968): borders between loaded
+// mapchunks must have their side faces, so no sky shows through there either
+test("gap test on the 3x3 world, borders in view", () => {
+  const dir = mkdtempSync(`${tmpdir()}/bvb-r-`);
+  render(["hills3", "1", "640", "480", `${dir}/n.ppm`]);
+  render(["hills3", "1", "640", "480", `${dir}/d.ppm`, "diag"]);
+  assert.ok(skyWhereTerrain(readPpm(`${dir}/n.ppm`).px, readPpm(`${dir}/d.ppm`).px) <= 5);
+});
+
+const tris = (out: string) => Number(/ tris (\d+)/.exec(out)![1]);
+
+test("3x3 world has more triangles than 1 mapchunk but fewer than 9x", () => {
+  const dir = mkdtempSync(`${tmpdir()}/bvb-r-`);
+  const one = tris(render(["hills1", "1", "640", "480", `${dir}/a.ppm`]));
+  const nine = tris(render(["hills3", "1", "640", "480", `${dir}/b.ppm`]));
+  assert.ok(nine > one && nine < 9 * one, `one ${one}, nine ${nine}`);
+});
