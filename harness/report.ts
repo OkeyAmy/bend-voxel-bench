@@ -5,12 +5,14 @@ import { readFileSync } from "node:fs";
 import { summarize, type Summary } from "./lib/stats.ts";
 import type { LaneRun } from "./lanes/bend.ts";
 import type { Parity } from "./verify.ts";
+import type { Conditions } from "./lib/conditions.ts";
 
 export type LaneResult = { id: string; engine: "bend" | "luanti"; threads: number; runs: LaneRun[];
   terrain?: Summary; wall?: Summary; peakMb?: number };
 export type Results = { schema: 1; date: string; commit: string; machine: Record<string, string | number>;
   versions: Record<string, string>; params: { seed: number; runs: number; threads: number[]; area: string };
-  lanes: LaneResult[]; parity: { reference: string; lanes: Record<string, Parity> } | null; notes: string[] };
+  lanes: LaneResult[]; parity: { reference: string; lanes: Record<string, Parity> } | null; notes: string[];
+  conditions?: Conditions };
 
 const tryRun = (cmd: string, args: string[]) => {
   try { return execFileSync(cmd, args, { encoding: "utf8" }).trim().split("\n")[0]; } catch { return "unknown"; }
@@ -42,7 +44,9 @@ export function finish(l: LaneResult): LaneResult {
 const f1 = (n: number) => n.toFixed(1);
 
 export function table(res: Results): string {
-  const head = `World generation (terrain) · seed ${res.params.seed} · ${res.params.area} · ${res.machine.cpu}`;
+  const c = res.conditions;
+  const head = `World generation (terrain) · seed ${res.params.seed} · ${res.params.area} · ${res.machine.cpu}`
+    + (c ? ` · power ${c.power}, governor ${c.governor}, load ${c.load1}` : "");
   const rows = [["lane", "terrain ms", "min", "max", "spread", "end-to-end ms", "peak MB", "terrain vs Luanti", "ok runs"]];
   for (const l of res.lanes) {
     const lu = res.lanes.find((x) => x.engine === "luanti" && x.threads === l.threads)?.terrain?.median;

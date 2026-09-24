@@ -10,6 +10,7 @@ import { runBend, type LaneRun } from "./lanes/bend.ts";
 import { runLuanti, LUANTI } from "./lanes/luanti.ts";
 import { parityAll } from "./verify.ts";
 import { finish, table, machine, versions, commit, type LaneResult, type Results } from "./report.ts";
+import { conditions } from "./lib/conditions.ts";
 
 const PARITY_MIN = 99.99;
 const BEND_PIN = "2.0.27";
@@ -45,6 +46,8 @@ async function race(): Promise<number> {
   need("/usr/bin/time", "sudo dnf install -y time");
   if (withLuanti && !existsSync(LUANTI)) throw new Error(`missing ${LUANTI}: run luanti/build.sh (or pass --no-luanti)`);
   buildEngine();
+  const cond = conditions();
+  if (cond.power === "battery") process.stderr.write("warning: on battery power, results will be slower and noisier\n");
 
   type Lane = { res: LaneResult; go: (keep: boolean) => Promise<LaneRun> };
   const lanes: Lane[] = [];
@@ -72,7 +75,7 @@ async function race(): Promise<number> {
   const res: Results = { schema: 1, date: new Date().toISOString(), commit: commit(), machine: machine(),
     versions: versions(BEND, withLuanti ? LUANTI : null),
     params: { seed, runs, threads, area: "x,z -32..367, y -112..207 (100 mapchunks)" },
-    lanes: lanes.map((l) => finish(l.res)), parity,
+    lanes: lanes.map((l) => finish(l.res)), parity, conditions: cond,
     notes: [
       "terrain = noise maps + block fill per mapchunk (Luanti: MapgenV7::generateTerrain, summed over mapchunks; Bend: wall time of the whole parallel generation)",
       "with more than 1 thread, Luanti's terrain number is a sum of per-mapchunk thread time, not wall time, so there is no multi-thread terrain ratio",
