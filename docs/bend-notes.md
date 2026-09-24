@@ -28,6 +28,7 @@ sends that whole call tree to the GPU.
 | Same at 1280 × 720 | 2 ms + 13 ms (≈ 66 FPS) | — | 3× the pixels costs +4 ms: triangles, not pixels, set the cost |
 | 3 × 3 mapchunks with border faces, 640 × 480 | 14 ms build + 62 ms draw (≈ 13 FPS), 30,916 triangles | — | Needs culling and LOD next |
 | **5 × 5 streamed world, 1280 × 720, 8 threads (battery)** | baseline 52 ms/frame → **30 ms** (G2 met) | — | View culling 52 → 35 ms; far mapchunks at half resolution → 30 ms; merging step fronts made it *slower* (see trap 14) |
+| Game frame with the race panel, 1280 × 720, 8 threads | 31–32 FPS (7 ms build + 25 ms draw) | — | New mapchunk while flying: 28 ms to generate and mesh |
 | Streaming: 600 frames flying 1,200 blocks (generate + mesh, no render) | 101 mapchunks loaded, 30 kept, 2.5 s total, peak 16 MB | — | No garbage collector, yet memory stays flat: a dropped mapchunk is freed the moment it's no longer referenced |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
@@ -78,6 +79,10 @@ sends that whole call tree to the GPU.
 
 14. **Fewer triangles isn't always faster in Bend3D.** Merging step fronts into long strips cut triangles 16 % but made frames 11 % slower. Bend3D sorts each triangle into every 64-px screen cell its box touches, so a long thin strip lands in many cells. Big *square-ish* savings help (half-resolution far land: −20 %); long slivers hurt. That's the shaders guide's warning about slivers, measured.
 15. **Measure on AC power.** On battery the laptop gave 38–39 ms for the same frame that ran 35 ms earlier. Always record the power state with a benchmark.
+
+16. **Bend3D's font is tiny: capitals, digits and `% / + . , ' -`.** No lowercase, no colon, no brackets, so every on-screen label has to fit that set. (Game engines ship full Unicode font rendering.)
+17. **A see-through quad shows its diagonal.** Bend3D's alpha mode blends each triangle separately, so the seam between a quad's two triangles gets blended twice and shows as a dotted line. Draw UI panels opaque.
+18. **Reading a file is three effects:** `File.open` → `File.read(f, max)` → `File.close`, each returning a `Result` (`Done{..}` / `Fail{..}`) to match on. There's no `read_to_string` shortcut.
 
 ## 6. Harness lessons (not Bend-specific, but found here)
 

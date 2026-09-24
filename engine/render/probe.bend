@@ -11,6 +11,7 @@ import ./draw.bend as D
 import ./view.bend as V
 import ../world/world.bend as W
 import ../world/stream.bend as S
+import ../hud.bend as H
 
 # scene hills1: seed 0, the mapchunk at (-31952, -31952), seen from its corner
 def P.hills1() -> +List<Q.Q>:
@@ -71,12 +72,31 @@ def P.world(+sc: U32) -> +List<W.Mc>:
   P.world.pick(U32.is_eq(sc, 0), U32.is_eq(sc, 1))
 
 # the world for the next frame: only the path scene moves and streams
-def P.next(path: Bool, +i: U32, +w: +List<W.Mc>) -> +List<W.Mc>:
+def P.next(path: Bool, +i: U32, +w: +List<W.Mc>) -> S.S.Step:
   match path:
     case True{}:
-      P.stream(i, w)
+      S.S.step(P.path.ws(), P.path.x(i), 29990.0, w)
     case False{}:
-      w
+      S.S.Step{w, None{}}
+
+def P.got.go(+m: Maybe<&2, S.S.Off>, +ms: U32, +prev: U32) -> U32:
+  match m:
+    case Some{_}:
+      ms
+    case None{}:
+      prev
+
+def P.got(+st: S.S.Step, +ms: U32, +prev: U32) -> U32:
+  S.S.Step{_, got} = st
+  P.got.go(got, ms, prev)
+
+def P.hud(on: Bool, +race: H.Race, +build: U32, +draw: U32, +load: U32, +x1: F32, +y1: F32,
+    cells: R.Cells) -> R.Cells:
+  match on:
+    case True{}:
+      H.Hud.draw(race, (build + draw : U32), build, draw, load, x1, y1, cells)
+    case False{}:
+      cells
 
 # every loaded mapchunk's quads into the cells
 # mapchunks nearer than this get the full mesh, farther ones the half-resolution one
@@ -143,27 +163,39 @@ def P.report(+bs: +List<Nat>, +ds: +List<Nat>, +tris: Nat) -> String:
     ++ Nat.show(tris)
 
 type Run is Data:
-  Run{w: U32, h: U32, m: U32, sc: U32}
+  Run{w: U32, h: U32, m: U32, sc: U32, hud: Bool, race: H.Race}
 
 def P.w(+r: Run) -> U32:
-  Run{w, _, _, _} = r
+  Run{w, _, _, _, _, _} = r
   w
 
 def P.h(+r: Run) -> U32:
-  Run{_, h, _, _} = r
+  Run{_, h, _, _, _, _} = r
   h
 
 def P.m(+r: Run) -> U32:
-  Run{_, _, m, _} = r
+  Run{_, _, m, _, _, _} = r
   m
 
 def P.sc(+r: Run) -> U32:
-  Run{_, _, _, t} = r
+  Run{_, _, _, t, _, _} = r
   t
+
+def P.hudon(+r: Run) -> Bool:
+  Run{_, _, _, _, on, _} = r
+  on
+
+def P.race(+r: Run) -> H.Race:
+  Run{_, _, _, _, _, race} = r
+  race
+
+def P.stw(+st: S.S.Step) -> +List<W.Mc>:
+  S.S.Step{w, _} = st
+  w
 
 @unsafe
 def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, +bs: +List<Nat>,
-    +ds: +List<Nat>, path: String) -> IO(Unit):
+    +ds: +List<Nat>, +lb: U32, +ld: U32, +ll: U32, path: String) -> IO(Unit):
   match k:
     case 0n:
       (old, used) = last
@@ -177,13 +209,19 @@ def P.loop(k: Nat, +qs: +List<W.Mc>, +run: Run, +i: U32, last: Image & R.Cells, 
       do IO<Unit>:
         +t0 : Nat <- IO.now()
         _ : R.Cells = R.Cells.drop(4n, used)
-        +wn : +List<W.Mc> = P.next(U32.is_eq(P.sc(run), 2), i, qs)
-        cells : R.Cells = P.draw(wn, P.cam(P.sc(run), i, w, h), P.m(run), U32.to_f32((w - 1 : U32)),
-          U32.to_f32((h - 1 : U32)), R.CNil{})
+        +st : S.S.Step = P.next(U32.is_eq(P.sc(run), 2), i, qs)
+        +tA : Nat <- IO.now()
+        +ll2 : U32 = P.got(st, U32.from_nat(Nat.sub(tA, t0)), ll)
+        +wn : +List<W.Mc> = P.stw(st)
+        +x1 : F32 = U32.to_f32((w - 1 : U32))
+        +y1 : F32 = U32.to_f32((h - 1 : U32))
+        cells : R.Cells = P.hud(P.hudon(run), P.race(run), lb, ld, ll2, x1, y1,
+          P.draw(wn, P.cam(P.sc(run), i, w, h), P.m(run), x1, y1, R.CNil{}))
         +t1 : Nat <- IO.now()
         drawn : Image & R.Cells <- IO.pure(Image & R.Cells, V.V.frame(U32.is_eq(w, 1280), cells, old))
         +t2 : Nat <- IO.now()
-        P.loop(p, wn, run, (i + 1 : U32), drawn, Nat.sub(t1, t0) <> bs, Nat.sub(t2, t1) <> ds, path)
+        P.loop(p, wn, run, (i + 1 : U32), drawn, Nat.sub(t1, t0) <> bs, Nat.sub(t2, t1) <> ds,
+          U32.from_nat(Nat.sub(t1, t0)), U32.from_nat(Nat.sub(t2, t1)), ll2, path)
 
 def P.arg(xs: +List<String>, n: Nat) -> String:
   Maybe.default(&2, String, List.get(&2, String, xs, n), "")
@@ -194,6 +232,17 @@ def P.num(xs: +List<String>, n: Nat) -> U32:
 def P.size_ok(+w: U32, +h: U32) -> Bool:
   ((U32.is_eq(w, 640) && U32.is_eq(h, 480)) || (U32.is_eq(w, 1280) && U32.is_eq(h, 720)))
 
+def P.missing.go(ok: Bool) -> IO(Unit):
+  match ok:
+    case True{}:
+      IO.pure(Unit, Unit{})
+    case False{}:
+      IO.print("hud: race file missing")
+
+def P.missing(+race: H.Race) -> IO(Unit):
+  H.Race{ok, _, _, _, _, _} = race
+  P.missing.go(ok)
+
 @unsafe
 def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
   match ok:
@@ -201,9 +250,13 @@ def P.go(ok: Bool, +args: +List<String>) -> IO(Unit):
       IO.die(Unit, 2, "usage: voxel -- render hills1|hills3|path <frames> <640 480|1280 720> <out.ppm> [diag]")
     case True{}:
       +sc = M.word(String.eq(P.arg(args, 1n), "hills3"), 1, M.word(String.eq(P.arg(args, 1n), "path"), 2, 0))
-      P.loop(U32.to_nat(P.num(args, 2n)), P.world(sc),
-        Run{P.num(args, 3n), P.num(args, 4n), M.word(String.eq(P.arg(args, 6n), "diag"), 1, 0),
-          sc}, 0, (Pix{0}, R.CNil{}), [], [], P.arg(args, 5n))
+      do IO<Unit>:
+        +race : H.Race <- H.Hud.read("out/race.txt")
+        P.missing(race)
+        P.loop(U32.to_nat(P.num(args, 2n)), P.world(sc),
+          Run{P.num(args, 3n), P.num(args, 4n), M.word(String.eq(P.arg(args, 6n), "diag"), 1, 0),
+            sc, Bool.not(String.eq(P.arg(args, 6n), "nohud")), race}, 0, (Pix{0}, R.CNil{}), [], [], 0, 0, 4294967295,
+          P.arg(args, 5n))
 
 # args: ["render", scene, frames, w, h, out, diag?]
 @unsafe
