@@ -1,5 +1,19 @@
+# build output and scratch
 build/
 out/
-luanti/src/
+out.aside/
 node_modules/
+
+# the Luanti source tree (luanti/build.sh clones and builds it)
+luanti/src/
+
+# local agent workspaces and the design/plan docs they made
 .superpowers/
+docs/superpowers/
+.remember/
+
+# results: the official races are committed; these are not
+#   live_*   written every time G is pressed in the game
+#   *-dirty  runs made with uncommitted code
+results/live_*.json
+results/*-dirty.json

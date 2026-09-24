@@ -1,19 +1,40 @@
 # Bend Voxel Bench
 
-A Luanti-style voxel world written in [Bend2](https://github.com/bendlang/bend),
-raced against real [Luanti](https://www.luanti.org) (C++). The game exists so
-we can learn how Bend2 works on a real program. What we learned is in
-[`docs/bend-notes.md`](docs/bend-notes.md).
+**An experiment to understand [Bend2](https://github.com/bendlang/bend)**, the new
+language from HigherOrderCO (released September 2026), by building something real
+with it and measuring it honestly.
+
+We ported the terrain generator of [Luanti](https://www.luanti.org) (a C++ voxel
+game) to Bend, built a small flyable voxel world on top of it, and raced Bend
+against real Luanti. This is not a product. It's a test bench and a learning log.
+
+- **What we learned about Bend** (gaps, traps, measurements, comparisons with the
+  tools people use today): [`docs/bend-notes.md`](docs/bend-notes.md)
+- **The race results:** [`RESULTS.md`](RESULTS.md) and `results/*.json`
+
+## What we found, in short
+
+| Question | Answer |
+|---|---|
+| Can Bend match C++ exactly? | Yes. Luanti's noise and terrain ported to Bend give **bit-identical** worlds (100 % of blocks) |
+| How fast is it? | Terrain for 100 mapchunks: **Bend 1,321 ms on 1 thread vs Luanti C++ 131 ms**, about 10× slower. Bend speeds itself up about 2.5× on 8 threads |
+| Can it run a 3D game on a CPU only? | Yes. A 5 × 5-mapchunk world at 1280 × 720 runs at about 50 FPS on a 2019 laptop CPU (Bend3D, no GPU) |
+| What's hard? | No signed integers, arrays are trees, few type inferences, a tiny font, no way to start programs (we wrote a C effect), and a type checker with no work limit that froze the machine once ([bendlang/bend#1041](https://github.com/bendlang/bend/issues/1041)) |
 
 Everything runs on Linux x86_64 on the CPU. No graphics card is needed.
 
 ## Play
 
+Run everything from the repo root (the game finds `harness/` and `out/` there):
+
 ```sh
-bend engine/main.bend -o build/voxel          # about 30 s the first time
-./build/voxel --threads 8 --gpu off -- play   # the cliffs of seed 123456789
+curl -fsSL https://bend-lang.com/install.sh | sh   # Bend 2.0.27 is the pinned version
+bend engine/main.bend -o build/voxel               # about 30 s the first time
+./build/voxel --threads 8 --gpu off -- play        # the cliffs of seed 123456789
 ./build/voxel --threads 8 --gpu off -- play 42
 ```
+
+The live race (G) also needs Node 22 and Luanti built once with `./luanti/build.sh`.
 
 | Key | Does |
 |---|---|
@@ -28,8 +49,8 @@ bend engine/main.bend -o build/voxel          # about 30 s the first time
 ```
 FPS 55  BUILD 5 MS  DRAW 13 MS
 NEW MAPCHUNK GEN+MESH 16 MS
-LIVE RACE AT -30112,29968  BEND 1T 1321.0 MS  8T 501.0 MS  LUANTI C++ 1T 130.6 MS
-TERRAIN, 100 MAPCHUNKS  SAME BLOCKS 100.00 %  AC POWER  LOAD 1.62
+LIVE RACE AT -30272,29808  BEND 1T 1321.0 MS  8T 501.0 MS  LUANTI C++ 1T 130.6 MS
+TERRAIN, 100 MAPCHUNKS  SAME BLOCKS 100.00 %  AC POWER  LOAD 1.62  PERFORMANCE
 ```
 
 - **FPS, BUILD, DRAW:** each frame, the main thread turns the visible blocks into
@@ -45,7 +66,8 @@ TERRAIN, 100 MAPCHUNKS  SAME BLOCKS 100.00 %  AC POWER  LOAD 1.62
 - **AC POWER, LOAD:** the conditions the race ran under. Battery power or
   background programs make the numbers slower and noisier.
 
-Before your first G, the race lines show the stored race from `out/race.txt`.
+Before your first G, the race lines show the stored race from `out/race.txt`,
+labelled `STORED RACE <commit>` so it can't be mistaken for a live one.
 To make `out/race.txt` (the stored race):
 
 ```sh
