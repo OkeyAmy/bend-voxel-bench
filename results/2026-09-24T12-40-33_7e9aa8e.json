@@ -1,0 +1,365 @@
+{
+  "schema": 1,
+  "date": "2026-09-24T12:40:33.382Z",
+  "commit": "7e9aa8e",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i7-8665U CPU @ 1.90GHz",
+    "threads": 8,
+    "os": "Fedora Linux 44 (Workstation Edition)",
+    "kernel": "6.19.10-300.fc44.x86_64"
+  },
+  "versions": {
+    "bend": "bend 2.0.27",
+    "luanti": "Luanti 5.17.0 (Linux)",
+    "clang": "clang version 22.1.8 (Fedora 22.1.8-4.fc44)",
+    "gcc": "g++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+    "node": "v22.22.2"
+  },
+  "params": {
+    "seed": 42,
+    "runs": 5,
+    "threads": [
+      1,
+      8
+    ],
+    "area": "x,z -32..367, y -112..207 (100 mapchunks)"
+  },
+  "lanes": [
+    {
+      "id": "bend·1t",
+      "engine": "bend",
+      "threads": 1,
+      "runs": [
+        {
+          "ok": true,
+          "wallMs": 1301,
+          "terrainMs": 1301,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29248
+        },
+        {
+          "ok": true,
+          "wallMs": 1366,
+          "terrainMs": 1366,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29112
+        },
+        {
+          "ok": true,
+          "wallMs": 1296,
+          "terrainMs": 1296,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29380
+        },
+        {
+          "ok": true,
+          "wallMs": 1354,
+          "terrainMs": 1354,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29364
+        },
+        {
+          "ok": true,
+          "wallMs": 1298,
+          "terrainMs": 1298,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29252
+        }
+      ],
+      "terrain": {
+        "median": 1301,
+        "min": 1296,
+        "max": 1366,
+        "spreadPct": 5.401234567901234
+      },
+      "wall": {
+        "median": 1301,
+        "min": 1296,
+        "max": 1366,
+        "spreadPct": 5.401234567901234
+      },
+      "peakMb": 28.69140625
+    },
+    {
+      "id": "luanti·1t",
+      "engine": "luanti",
+      "threads": 1,
+      "runs": [
+        {
+          "ok": true,
+          "wallMs": 950.64,
+          "terrainMs": 128.327,
+          "liquidMs": 224.318,
+          "lightMs": 0,
+          "peakKb": 162772,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 128327,
+            "middleUs": 44215,
+            "liquidUs": 224318,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 971.979,
+          "terrainMs": 133.044,
+          "liquidMs": 231.349,
+          "lightMs": 0,
+          "peakKb": 163416,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 133044,
+            "middleUs": 46548,
+            "liquidUs": 231349,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 976.276,
+          "terrainMs": 131.432,
+          "liquidMs": 231.128,
+          "lightMs": 0,
+          "peakKb": 163128,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 131432,
+            "middleUs": 46896,
+            "liquidUs": 231128,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 927.134,
+          "terrainMs": 127.307,
+          "liquidMs": 222.139,
+          "lightMs": 0,
+          "peakKb": 163432,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 127307,
+            "middleUs": 43694,
+            "liquidUs": 222139,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 971.166,
+          "terrainMs": 132.432,
+          "liquidMs": 233.483,
+          "lightMs": 0,
+          "peakKb": 162808,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 132432,
+            "middleUs": 46599,
+            "liquidUs": 233483,
+            "lightUs": 0
+          }
+        }
+      ],
+      "terrain": {
+        "median": 131.432,
+        "min": 127.307,
+        "max": 133.044,
+        "spreadPct": 4.506429340099138
+      },
+      "wall": {
+        "median": 971.166,
+        "min": 927.134,
+        "max": 976.276,
+        "spreadPct": 5.300420435449453
+      },
+      "peakMb": 159.6015625
+    },
+    {
+      "id": "bend·8t",
+      "engine": "bend",
+      "threads": 8,
+      "runs": [
+        {
+          "ok": true,
+          "wallMs": 534,
+          "terrainMs": 534,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38020
+        },
+        {
+          "ok": true,
+          "wallMs": 526,
+          "terrainMs": 526,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38084
+        },
+        {
+          "ok": true,
+          "wallMs": 520,
+          "terrainMs": 520,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38140
+        },
+        {
+          "ok": true,
+          "wallMs": 565,
+          "terrainMs": 565,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38340
+        },
+        {
+          "ok": true,
+          "wallMs": 542,
+          "terrainMs": 542,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38080
+        }
+      ],
+      "terrain": {
+        "median": 534,
+        "min": 520,
+        "max": 565,
+        "spreadPct": 8.653846153846153
+      },
+      "wall": {
+        "median": 534,
+        "min": 520,
+        "max": 565,
+        "spreadPct": 8.653846153846153
+      },
+      "peakMb": 37.44140625
+    },
+    {
+      "id": "luanti·8t",
+      "engine": "luanti",
+      "threads": 8,
+      "runs": [
+        {
+          "ok": true,
+          "wallMs": 764.775,
+          "terrainMs": 173.111,
+          "liquidMs": 317.667,
+          "lightMs": 0,
+          "peakKb": 231376,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 173111,
+            "middleUs": 64837,
+            "liquidUs": 317667,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 767.565,
+          "terrainMs": 172.565,
+          "liquidMs": 313.272,
+          "lightMs": 0,
+          "peakKb": 226148,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 172565,
+            "middleUs": 66831,
+            "liquidUs": 313272,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 763.899,
+          "terrainMs": 160.782,
+          "liquidMs": 285.902,
+          "lightMs": 0,
+          "peakKb": 229440,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 160782,
+            "middleUs": 61019,
+            "liquidUs": 285902,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 788.958,
+          "terrainMs": 175.672,
+          "liquidMs": 309.066,
+          "lightMs": 0,
+          "peakKb": 229396,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 175672,
+            "middleUs": 68453,
+            "liquidUs": 309066,
+            "lightUs": 0
+          }
+        },
+        {
+          "ok": true,
+          "wallMs": 766.555,
+          "terrainMs": 171.789,
+          "liquidMs": 309.837,
+          "lightMs": 0,
+          "peakKb": 229444,
+          "chunks": {
+            "count": 100,
+            "outside": [],
+            "terrainUs": 171789,
+            "middleUs": 63085,
+            "liquidUs": 309837,
+            "lightUs": 0
+          }
+        }
+      ],
+      "terrain": {
+        "median": 172.565,
+        "min": 160.782,
+        "max": 175.672,
+        "spreadPct": 9.260986926397225
+      },
+      "wall": {
+        "median": 766.555,
+        "min": 763.899,
+        "max": 788.958,
+        "spreadPct": 3.280407488424513
+      },
+      "peakMb": 225.953125
+    }
+  ],
+  "parity": {
+    "chunks": 100,
+    "columns": 640000,
+    "mismatches": 0,
+    "percent": 100,
+    "missing": [],
+    "sample": [],
+    "bendLane": "bend·1t",
+    "luantiLane": "luanti·1t"
+  },
+  "notes": [
+    "terrain = noise maps + block fill per mapchunk (Luanti: MapgenV7::generateTerrain, summed over mapchunks; Bend: wall time of the whole parallel generation)",
+    "with more than 1 thread, Luanti's terrain sum is thread time, not wall time; compare end-to-end ms for multi-thread lanes",
+    "Luanti end-to-end = emerge_area call to last callback, including its queueing; Bend does no liquid or lighting step in Plan 1, Luanti runs with nolight",
+    "build flags: Luanti 5.17.0 CMake Release (-O3 -funroll-loops -fomit-frame-pointer -fno-math-errno -fno-trapping-math -fno-signed-zeros) + luanti/timing.patch; Bend: bend engine/main.bend -o build/voxel (Bend's own clang flags)"
+  ]
+}
