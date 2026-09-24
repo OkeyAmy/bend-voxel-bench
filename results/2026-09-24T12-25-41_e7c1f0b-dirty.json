@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "date": "2026-09-24T12:25:41.177Z",
+  "commit": "e7c1f0b-dirty",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i7-8665U CPU @ 1.90GHz",
+    "threads": 8,
+    "os": "Fedora Linux 44 (Workstation Edition)",
+    "kernel": "6.19.10-300.fc44.x86_64"
+  },
+  "versions": {
+    "bend": "bend 2.0.27",
+    "luanti": "not run",
+    "clang": "clang version 22.1.8 (Fedora 22.1.8-4.fc44)",
+    "gcc": "g++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+    "node": "v22.22.2"
+  },
+  "params": {
+    "seed": 42,
+    "runs": 2,
+    "threads": [
+      1,
+      8
+    ],
+    "area": "x,z -32..367, y -112..207 (100 mapchunks)"
+  },
+  "lanes": [
+    {
+      "id": "bend·1t",
+      "engine": "bend",
+      "threads": 1,
+      "runs": [
+        {
+          "ok": true,
+          "wallMs": 1884,
+          "terrainMs": 1884,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29252
+        },
+        {
+          "ok": true,
+          "wallMs": 2267,
+          "terrainMs": 2267,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 29488
+        }
+      ],
+      "terrain": {
+        "median": 2075.5,
+        "min": 1884,
+        "max": 2267,
+        "spreadPct": 20.32908704883227
+      },
+      "wall": {
+        "median": 2075.5,
+        "min": 1884,
+        "max": 2267,
+        "spreadPct": 20.32908704883227
+      },
+      "peakMb": 28.796875
+    },
+    {
+      "id": "bend·8t",
+      "engine": "bend",
+      "threads": 8,
+      "runs": [
+        {
+          "ok": true,
+          "wallMs": 927,
+          "terrainMs": 927,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38208
+        },
+        {
+          "ok": true,
+          "wallMs": 1107,
+          "terrainMs": 1107,
+          "liquidMs": 0,
+          "lightMs": 0,
+          "peakKb": 38208
+        }
+      ],
+      "terrain": {
+        "median": 1017,
+        "min": 927,
+        "max": 1107,
+        "spreadPct": 19.41747572815534
+      },
+      "wall": {
+        "median": 1017,
+        "min": 927,
+        "max": 1107,
+        "spreadPct": 19.41747572815534
+      },
+      "peakMb": 37.3125
+    }
+  ],
+  "parity": null,
+  "notes": [
+    "terrain = noise maps + block fill per mapchunk (Luanti: MapgenV7::generateTerrain, summed over mapchunks; Bend: wall time of the whole parallel generation)",
+    "with more than 1 thread, Luanti's terrain sum is thread time, not wall time; compare end-to-end ms for multi-thread lanes",
+    "Luanti end-to-end = emerge_area call to last callback, including its queueing; Bend does no liquid or lighting step in Plan 1, Luanti runs with nolight",
+    "build flags: Luanti 5.17.0 CMake Release (-O3 -funroll-loops -fomit-frame-pointer -fno-math-errno -fno-trapping-math -fno-signed-zeros) + luanti/timing.patch; Bend: bend engine/main.bend -o build/voxel (Bend's own clang flags)"
+  ]
+}
