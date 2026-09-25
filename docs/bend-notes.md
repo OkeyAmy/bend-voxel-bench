@@ -35,6 +35,7 @@ sends that whole call tree to the GPU.
 | Streaming: 600 frames flying 1,200 blocks (generate + mesh, no render) | 101 mapchunks loaded, 30 kept, 2.5 s total, peak 16 MB | — | No garbage collector, yet memory stays flat: a dropped mapchunk is freed the moment it's no longer referenced |
 | Slash Boss 3D demo, 1920 × 1200 | 28.5 ms/frame (8 threads), 98 ms (1 thread) | — | Bend's own demo on this laptop |
 | Build time of a 3,200-line Bend program | about 20 s | — | clang compile of the generated C |
+| Law gate: `bend engine/PROOF.bend` (7 laws, one with an 8-case list proof) | 1 s | — | Prints `All terms check.`; runs before every game build (`harness/build.ts`) and in `tests/laws.test.ts` |
 
 ## 3. What works well
 
@@ -116,7 +117,112 @@ sends that whole call tree to the GPU.
 | No mixed quantities | No ratio between Bend's wall time and Luanti's per-thread sum. FPS is never put next to Luanti (Luanti draws on the GPU, Bend on the CPU) |
 | Timers inside each engine | Bend `IO.now()` around the generation (ms), Luanti a patch around `generateTerrain` (µs). Totals over 100 mapchunks keep the ms rounding under 0.1 % |
 
-## 7. Open questions to answer next
+## 7. Law-driven development (engine/LAWS.bend / engine/PROOF.bend)
+
+Bend 2 ships the feature this project was built to understand: a proof checker.
+A `law` in `LAWS.bend` states an equation over the engine's own functions; a
+`def Laws.<name>` in `PROOF.bend` has to convince the checker it holds; the gate
+is `bend engine/PROOF.bend` → `All terms check.` (about 1 s here). The laws live
+in the game: `harness/build.ts` runs the gate before every `buildEngine()`, so a
+broken proof refuses the build. `tests/laws.test.ts`
+runs the gate, fails if a proof is left as `?TODO` (`tests/fixtures/laws_open/`
+is the broken example), and cross-checks that every `law` has a `def Laws.<name>`.
+
+What we prove (`engine/LAWS.bend` / `engine/PROOF.bend`):
+
+- **L1 — selectors and pack:** `M.word(True, a, b) == a`,
+  `M.pick(True, a, b) == a`, and `M.pack` at index 0 returns the accumulator.
+- **L2 — the stone rule:** `M.block(y, s)` equals its `word` form, and is stone
+  (1) wherever `I32.le(y, s)` holds. The evidence-binder proof works because the
+  checker normalises the goal: the prop says `M.block(...)`, the `%e` annotation
+  talks in `M.word(...)` terms, and the checker unfolds one to match the other.
+- **L3 — `M.levels` preserves list length** when the three input lists agree.
+  Eight cases: the Cons/Cons/Cons branch recurses with an induction hypothesis
+  plus `len_peel` (cancels the `1n+` of a Cons using `Equal.cong` over a `pred`);
+  the mismatched branches use their false `el`/`er` hypotheses by rewriting until
+  the goal is `refl`.
+
+Mechanics that cost probes (copy for next time):
+
+1. **Imports need an alias:** `import ./LAWS.bend as Laws`, proofs named
+   `def Laws.<name>`. A bare `import ./LAWS.bend` is a parse error.
+2. **The double alias applies to defs too** (trap 13 is about types): a def
+   declared `def M.block` inside `mapgen.bend` is `M.M.block` from outside —
+   the same reason `bench.bend` calls `M.M.chunk`. Unprefixed defs
+   (`def word`) stay `M.word`.
+3. **List plumbing:** `List.length(&2, A, xs)` takes a usage, the element type,
+   then the list; law binders must match (`for bs: List<&2, F32>`, not
+   `List<F32>`); a pattern tail used twice needs `Con{+b, +bt}`; and
+   `match a b c` takes exactly one pattern per scrutinee (`case _ _ _` for the
+   fallback).
+4. **`{==}` has a cliff.** Small structural goals close instantly; the stretch
+   law `heights_len` (6400 levels through `map2d`/`octaves`/`finish`/reverse)
+   type-checks as a statement but was OOM-killed at the 4 GB cap in 13 s when
+   asked to prove itself. It needs length lemmas about each helper first.
+5. **F32 is axiomatic, by design:** the checker refuses
+   `F32.add(a, b) == F32.add(b, a)` and even literal folding
+   (`1.0 + 2.0` stays `F32.add(1.0, 2.0)`), so no property of the noise maths
+   can be proven.
+
+Coverage: seven laws about mapgen and six about movement. The render code and the
+streaming world have none.
+
+**L4, the ground.** The camera doesn't go below the ground under it. The first
+version used a flat floor at y = 2, and you still flew through hills. Now `G.ground`
+reads the top of the terrain column (plus 1.7 eye height, or sea level 3.7 where no
+mapchunk is loaded) and `G.move` keeps you at or above it. Proofs about a record have
+to split it first: `G.y(G.step(s, w))` won't compute while `s` is unknown, so the
+proof does `match s` into its six fields and then rewrites with the `F32.is_lt`
+hypothesis.
+
+**L5, walls.** A column two or more blocks above the camera is a wall, and walking
+into it leaves x and z unchanged (`wall_stops_x/z`). Two more laws say open ground
+still moves you (`open_moves_x/z`), otherwise a camera that never moves would pass.
+We wrote these laws before the code. The check went:
+
+1. laws only: `4 TODOs found`
+2. proofs added, old code: failed at `wall_stops_x`, the checker computed that x
+   still changes
+3. wall code added: failed at the old `ground_stops_fall`, because it talked about
+   the ground where the keys lead, and at a wall you stay put
+4. ground laws changed to "the ground where you end up": `All terms check.`
+
+What the laws caught (one change at a time, check run after each):
+
+| Change | Result |
+|---|---|
+| mapgen: stone and water ids swapped | refused (`block_def`) |
+| mapgen: blocks packed 8 bits apart instead of 4 | got through (only the empty-pack case has a law) |
+| mapgen: height rounded down instead of toward zero | got through (floats, no law possible) |
+| game: floor removed so you can dive underwater | refused (`floor_stops_dive`, the old flat-floor law) |
+| game: floor lowered from 2 to 0 | refused (`floor_stops_dive`) |
+| game: fixed height 2 instead of the ground under you | refused (`ground_stops_fall`) |
+| game: wall check removed | refused (`wall_stops_x`) |
+
+And what got around them, tried on copies of the engine:
+
+| Change | Result |
+|---|---|
+| wall check removed and the wall laws and proofs deleted | `All terms check.` |
+| wall check removed, game built with plain `bend engine/main.bend` | builds; only `PROOF.bend` imports the laws |
+| "one block" changed to "1000 blocks" in the code and the laws | `All terms check.` |
+
+`tests/laws.test.ts` keeps the ground and wall cases: a copy of the engine with the
+change must fail the check.
+
+Lessons:
+- Laws don't run while you play. They're checked at build time for every input and
+  then erased.
+- The check compares laws with code. It doesn't know or care who wrote them, so the
+  laws file needs its own review.
+- A law only protects code the game runs. Our first floor laws were about `R.max`,
+  which the game didn't call, so they protected nothing until `G.move` used it.
+- A law that just restates the code (`block_def` restates `M.block`) refuses every
+  change, good or bad. A useful law says what has to stay true.
+- The error names the law but prints raw terms (a screen of `F32.add(...)`). That's
+  enough to find which rule broke, not why.
+
+## 8. Open questions to answer next
 
 - Can culling and LOD bring a 5 × 5-mapchunk world to 30 FPS at 1280 × 720 on 8 CPU threads? (Plan 2a Task 4)
 - How does Bend3D's text rendering cost compare with the terrain? (Plan 2a Task 5)

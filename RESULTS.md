@@ -1,15 +1,68 @@
 # Results
 
+Fresh races are at the top; older ones stay below as history.
+
+## Race 2 (2026-09-24, commit dd4c94b)
+
+```
+World generation (terrain) · seed 42 · x,z -32..367, y -112..207 (100 mapchunks) · Intel(R) Core(TM) i7-8665U CPU @ 1.90GHz · power ac, governor performance, load 2.26
+
+lane       terrain ms  min     max     spread  end-to-end ms  peak MB  terrain vs Luanti          ok runs
+bend·1t    1653.0      1622.0  2051.0  26.4 %  -              30.4     0.10× slower               5/5
+luanti·1t  161.1       150.0   214.6   43.0 %  1203.9         159.9    reference                  5/5
+bend·8t    741.0       698.0   950.0   36.1 %  -              38.4     n/a (Luanti: thread time)  5/5
+luanti·8t  220.8       208.9   229.2   9.7 %   966.0          224.2    reference                  5/5
+
+parity (bend·1t vs luanti·1t): 100.0000 % of 640000 columns identical, 0 differ
+parity (bend·8t vs luanti·1t): 100.0000 % of 640000 columns identical, 0 differ
+parity (luanti·8t vs luanti·1t): 100.0000 % of 640000 columns identical, 0 differ
+note: terrain = noise maps + block fill per mapchunk (Luanti: MapgenV7::generateTerrain, summed over mapchunks; Bend: wall time of the whole parallel generation)
+note: with more than 1 thread, Luanti's terrain number is a sum of per-mapchunk thread time, not wall time, so there is no multi-thread terrain ratio
+note: Luanti end-to-end = emerge_area call to last callback (terrain, liquid step, queueing, and a re-emerge pass for cancelled blocks); Bend has no liquid step or queue, so it has no end-to-end number
+note: build flags: Luanti 5.17.0 CMake Release (-O3 -funroll-loops -fomit-frame-pointer -fno-math-errno -fno-trapping-math -fno-signed-zeros) + luanti/timing.patch; Bend: bend engine/main.bend -o build/voxel (Bend's own clang flags)
+```
+
+Machine: Intel i7-8665U laptop (4 cores, 8 threads), Fedora 44, kernel 6.19.10, on AC power, `performance` CPU governor. Bend 2.0.27 against Luanti 5.17.0 built from source, seed 42, 100 mapchunks (51.2 million blocks), 1 warm-up plus 5 interleaved runs per lane, each run a fresh process on a fresh world. Raw data: `results/2026-09-24T21-51-34_dd4c94b.json`.
+
+**This race ran on a busy machine: load 2.26** (a browser, a VM and an assistant
+session were using the CPU at the same time). That is what the header's `load 2.26`
+means, and it is why the spreads are wide.
+
+**G1 (parity) passed on every lane.** Bend's world, at 1 and 8 threads, is still
+identical to real Luanti's: 0 of 640,000 columns different. **G3 (spread) failed
+badly this time:** 9.7 % to 43.0 %, against a strict 5 % bound (race 1's worst lane
+was 8.4 %). Read the min column as the quietest sample and the median as the typical
+one.
+
+**Headline: same work, same output, both single-threaded. Bend's terrain generation
+takes 1,653 ms and Luanti's takes 161 ms — about 10.3× slower.**
+
+**Multi-thread: Bend goes from 1,653 ms to 741 ms with 8 threads, a 2.2× speedup on
+its own** (race 1 measured 2.5×; the extra threads lose more to a busy machine than
+the single-threaded lanes do).
+
+Why this race still counts, compared with race 1 (commit `6c3dcc9`):
+
+- The single-threaded lanes both slowed by almost the same amount (Bend +22 %,
+  Luanti +23 %), so the ratio barely moved: **10.30× in race 1, 10.26× in race 2.**
+  The ratio is the result; the millisecond column moves with how busy the laptop is.
+- The multi-threaded lanes slowed more (Bend +40 %, Luanti +34 %) because eight
+  threads have to share cores with everything else that was running.
+- There is still no fair 8-thread Bend-vs-Luanti number: Luanti's terrain figure is
+  a sum of per-mapchunk thread time, not wall time, and its end-to-end figure also
+  includes a liquid step, emerge queueing and a re-emerge pass that Bend does not
+  have.
+
 ## First race (2026-09-24, commit 6c3dcc9)
 
 ```
 World generation (terrain) · seed 42 · x,z -32..367, y -112..207 (100 mapchunks) · Intel(R) Core(TM) i7-8665U CPU @ 1.90GHz
 
 lane       terrain ms  min     max     spread  end-to-end ms  peak MB  terrain vs Luanti          ok runs
-bend·1t    1350.0      1275.0  1382.0  8.4 %   -              28.8     0.10× slower               5/5    
-luanti·1t  131.1       127.3   132.2   3.9 %   964.8          159.8    reference                  5/5    
-bend·8t    530.0       522.0   547.0   4.8 %   -              37.3     n/a (Luanti: thread time)  5/5    
-luanti·8t  164.9       158.9   169.0   6.3 %   752.9          227.4    reference                  5/5    
+bend·1t    1350.0      1275.0  1382.0  8.4 %   -              28.8     0.10× slower               5/5
+luanti·1t  131.1       127.3   132.2   3.9 %   964.8          159.8    reference                  5/5
+bend·8t    530.0       522.0   547.0   4.8 %   -              37.3     n/a (Luanti: thread time)  5/5
+luanti·8t  164.9       158.9   169.0   6.3 %   752.9          227.4    reference                  5/5
 
 parity (bend·1t vs luanti·1t): 100.0000 % of 640000 columns identical, 0 differ
 parity (bend·8t vs luanti·1t): 100.0000 % of 640000 columns identical, 0 differ
