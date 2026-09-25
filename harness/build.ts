@@ -19,6 +19,9 @@ export function bendBuild(src: string, out: string): void {
 }
 
 export function buildEngine(): void {
+  // The engine's laws are part of the game: a broken proof refuses the build.
+  const [cmd, ...pre] = BEND_CAP;
+  execFileSync(cmd, [...pre, BEND, "engine/PROOF.bend"], { stdio: "inherit", env: { ...process.env, BEND_NO_TELEMETRY: "1" } });
   bendBuild("engine/main.bend", "voxel");
 }
 

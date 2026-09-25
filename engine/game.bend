@@ -48,12 +48,26 @@ def G.on(+held: U32, +b: U32) -> F32:
   R.pick(((held .&. b) > 0 : U32), 1.0, 0.0)
 
 # one frame of flying: 0.6 blocks per frame, 0.04 rad of turn, 0.03 rad of pitch up to +-1.4
+# the height after this frame's up/down keys (E up, Q down), before the floor
+def G.rawy(+s: St) -> F32:
+  St{_, +y, _, _, _, +held} = s
+  (y + 0.6 * (G.on(held, 32) - G.on(held, 16)) : F32)
+
+# the ground plane at y = 2: the camera never goes below it.
+# engine/LAWS.bend states this rule; the build refuses any G.move that breaks it.
+def G.floor(+v: F32) -> F32:
+  R.max(v, 2.0)
+
+def G.y(+s: St) -> F32:
+  St{_, y, _, _, _, _} = s
+  y
+
 def G.move(+s: St) -> St:
-  St{+x, +y, +z, +yaw, +pitch, +held} = s
+  St{+x, _, +z, +yaw, +pitch, +held} = s
   +fw = (G.on(held, 1) - G.on(held, 4) : F32)
   +st = (G.on(held, 8) - G.on(held, 2) : F32)
   +sp = {0.6 : F32}
-  St{(x + sp * (fw * F32.sin(yaw) + st * F32.cos(yaw)) : F32), (y + sp * (G.on(held, 32) - G.on(held, 16)) : F32),
+  St{(x + sp * (fw * F32.sin(yaw) + st * F32.cos(yaw)) : F32), G.floor(G.rawy(s)),
     (z + sp * (fw * F32.cos(yaw) - st * F32.sin(yaw)) : F32),
     (yaw + 0.04 * (G.on(held, 128) - G.on(held, 64)) : F32),
     R.clamp((pitch + 0.03 * (G.on(held, 256) - G.on(held, 512)) : F32), (0.0 - 1.4 : F32), 1.4), held}

@@ -42,3 +42,10 @@ test("holding up for 200 frames stops the pitch at 1.4", () => {
 test("esc quits", () => {
   assert.equal(sim(["5", "esc"]), "quit");
 });
+
+// the floor rule, seen from play: holding Q (down, 0.6 per frame) from 60 stops at the plane
+test("holding Q for 200 frames stops at the ground plane, y = 2", () => {
+  const s = sim(["200", "q"]);
+  assert.ok(s !== "quit");
+  assert.equal(s.y, 2);
+});
