@@ -67,18 +67,21 @@ def Laws.levels_length(bs, as2, hs, el, er):
     case Nil{} Nil{} Nil{}:
       {==}
 
-# G.move takes the state apart, so first split s into its six fields; then
-# G.y(G.move(s)) computes to G.floor(G.rawy(s)) = pick(rawy < 2, 2, rawy).
+# G.step takes the state apart, so first split s into its six fields; then
+# G.y(G.step(s, w)) computes to pick(rawy < ground, ground, rawy).
 # Rewrite the comparison with the hypothesis, and pick reduces.
-def Laws.floor_stops_dive(s, below):
+def Laws.ground_stops_fall(s, w, below):
   match s:
     case G.St{x, y, z, yaw, pitch, held}:
-      %below : {R.pick(_, 2.0, G.G.rawy(G.St{x, y, z, yaw, pitch, held})) == 2.0 : F32}
+      %below : {R.pick(_, G.G.ground(w, G.G.rawx(G.St{x, y, z, yaw, pitch, held}), G.G.rawz(G.St{x, y, z, yaw, pitch, held})),
+        G.G.rawy(G.St{x, y, z, yaw, pitch, held}))
+        == G.G.ground(w, G.G.rawx(G.St{x, y, z, yaw, pitch, held}), G.G.rawz(G.St{x, y, z, yaw, pitch, held})) : F32}
       {==}
 
-def Laws.floor_keeps_height(s, above):
+def Laws.ground_keeps_height(s, w, above):
   match s:
     case G.St{x, y, z, yaw, pitch, held}:
-      %above : {R.pick(_, 2.0, G.G.rawy(G.St{x, y, z, yaw, pitch, held}))
+      %above : {R.pick(_, G.G.ground(w, G.G.rawx(G.St{x, y, z, yaw, pitch, held}), G.G.rawz(G.St{x, y, z, yaw, pitch, held})),
+        G.G.rawy(G.St{x, y, z, yaw, pitch, held}))
         == G.G.rawy(G.St{x, y, z, yaw, pitch, held}) : F32}
       {==}

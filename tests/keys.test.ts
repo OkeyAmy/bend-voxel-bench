@@ -43,9 +43,10 @@ test("esc quits", () => {
   assert.equal(sim(["5", "esc"]), "quit");
 });
 
-// the floor rule, seen from play: holding Q (down, 0.6 per frame) from 60 stops at the plane
-test("holding Q for 200 frames stops at the ground plane, y = 2", () => {
+// the ground rule, seen from play: keys-sim has no world loaded, so the ground is sea level
+// (top 2) plus eye height 1.7; holding Q (down, 0.6 per frame) from 60 stops there
+test("holding Q for 200 frames stops at the ground, y = 2 + 1.7", () => {
   const s = sim(["200", "q"]);
   assert.ok(s !== "quit");
-  assert.equal(s.y, 2);
+  assert.ok(Math.abs(s.y - 3.7) < 1e-4, JSON.stringify(s));
 });

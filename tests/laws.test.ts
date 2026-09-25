@@ -43,16 +43,17 @@ test("every law in LAWS.bend has a proof in PROOF.bend", () => {
 import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-// The Bend2 claim, on this game: an AI change that lets the camera dive below the
-// ground plane cannot be built. A copy of the engine gets the change; the gate refuses it.
-test("an AI change that breaks the floor rule is refused by the gate", () => {
+// The Bend2 claim, on this game: an AI change that lets the camera fly through the
+// hills ("noclip": a fixed floor instead of the ground under the camera) cannot be
+// built. A copy of the engine gets the change; the gate refuses it.
+test("an AI change that lets the camera through the ground is refused by the gate", () => {
   const dir = mkdtempSync(`${tmpdir()}/bvb-law-`);
   cpSync("engine", `${dir}/engine`, { recursive: true });
   const game = readFileSync(`${dir}/engine/game.bend`, "utf8");
-  const dive = game.replace("G.floor(G.rawy(s)),", "G.rawy(s),");
-  assert.notEqual(dive, game, "the dive change did not apply: G.move changed shape");
+  const dive = game.replace("G.move(s, G.ground(w, G.rawx(s), G.rawz(s)))", "G.move(s, 2.0)");
+  assert.notEqual(dive, game, "the noclip change did not apply: G.step changed shape");
   writeFileSync(`${dir}/engine/game.bend`, dive);
   const { status, out } = runBend([`${dir}/engine/PROOF.bend`]);
   assert.notEqual(status, 0);
-  assert.match(out, /LAWS\.floor_stops_dive/);
+  assert.match(out, /LAWS\.ground_(stops_fall|keeps_height)/);
 });

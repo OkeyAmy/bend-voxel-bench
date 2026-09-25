@@ -7,6 +7,7 @@ import ./mapgen.bend as M
 import ./i32.bend as I
 import ./render/bend3d.bend as R
 import ./game.bend as G
+import ./world/world.bend as W
 
 # Convention example from the Bend guide.
 law add_zero:
@@ -55,18 +56,21 @@ law levels_length:
   for er: {List.length(&2, F32, as2) == List.length(&2, F32, hs) : Nat}
   {List.length(&2, U32, M.M.levels(bs, as2, hs)) == List.length(&2, F32, bs) : Nat}
 
-# --- L4: the camera never goes below the ground plane (y = 2) ---
-# These laws are about G.move, the function the game runs every frame, so they
-# guard real gameplay: a change to G.move that lets the camera dive below the
-# plane makes `bend engine/PROOF.bend` fail, and the build stops.
-# G.rawy is the height after this frame's up/down keys, before the floor.
+# --- L4: the camera never goes below the ground under it ---
+# G.step(s, w) is one frame of movement in the world w. G.ground(w, x, z) is the
+# top of the terrain column at (x, z) plus eye height (sea level when that
+# mapchunk isn't loaded). G.rawx/rawy/rawz are where the keys would take the
+# camera before the ground is checked. So: fly into a hill and you stop on it;
+# anywhere above the ground, your height is untouched.
 
-law floor_stops_dive:
+law ground_stops_fall:
   for s: G.St
-  for below: {True{} == F32.is_lt(G.G.rawy(s), 2.0) : Bool}
-  {G.G.y(G.G.move(s)) == 2.0 : F32}
+  for w: List<&2, W.Mc>
+  for below: {True{} == F32.is_lt(G.G.rawy(s), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  {G.G.y(G.G.step(s, w)) == G.G.ground(w, G.G.rawx(s), G.G.rawz(s)) : F32}
 
-law floor_keeps_height:
+law ground_keeps_height:
   for s: G.St
-  for above: {False{} == F32.is_lt(G.G.rawy(s), 2.0) : Bool}
-  {G.G.y(G.G.move(s)) == G.G.rawy(s) : F32}
+  for w: List<&2, W.Mc>
+  for above: {False{} == F32.is_lt(G.G.rawy(s), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  {G.G.y(G.G.step(s, w)) == G.G.rawy(s) : F32}

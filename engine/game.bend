@@ -13,6 +13,7 @@ import ./world/world.bend as W
 import ./world/stream.bend as S
 import ./hud.bend as H
 import ./live.bend as L
+import ./render/mesh.bend as Q
 
 # held keys as bits: 1 w, 2 a, 4 s, 8 d, 16 q, 32 e, 64 left, 128 right, 256 up, 512 down, 1024 g
 def G.bit(+code: U32) -> U32:
@@ -47,30 +48,60 @@ type St is Data:
 def G.on(+held: U32, +b: U32) -> F32:
   R.pick(((held .&. b) > 0 : U32), 1.0, 0.0)
 
-# one frame of flying: 0.6 blocks per frame, 0.04 rad of turn, 0.03 rad of pitch up to +-1.4
-# the height after this frame's up/down keys (E up, Q down), before the floor
+# forward (W - S) and strafe (D - A) of the held keys
+def G.fw(+held: U32) -> F32:
+  (G.on(held, 1) - G.on(held, 4) : F32)
+
+def G.side(+held: U32) -> F32:
+  (G.on(held, 8) - G.on(held, 2) : F32)
+
+# where this frame's keys would take the camera, before the ground is checked
+def G.rawx(+s: St) -> F32:
+  St{+x, _, _, +yaw, _, +held} = s
+  (x + 0.6 * (G.fw(held) * F32.sin(yaw) + G.side(held) * F32.cos(yaw)) : F32)
+
 def G.rawy(+s: St) -> F32:
   St{_, +y, _, _, _, +held} = s
   (y + 0.6 * (G.on(held, 32) - G.on(held, 16)) : F32)
 
-# the ground plane at y = 2: the camera never goes below it.
-# engine/LAWS.bend states this rule; the build refuses any G.move that breaks it.
-def G.floor(+v: F32) -> F32:
-  R.max(v, 2.0)
+def G.rawz(+s: St) -> F32:
+  St{_, _, +z, +yaw, _, +held} = s
+  (z + 0.6 * (G.fw(held) * F32.cos(yaw) - G.side(held) * F32.sin(yaw)) : F32)
+
+# the ground at a column: the top of its terrain plus eye height 1.7;
+# sea level (top 2) when that mapchunk isn't loaded
+def G.ground.at(+m: Maybe<&2, U32>) -> F32:
+  match m:
+    case Some{+l}:
+      (I.I32.to_f32(Q.Mesh.top(l)) + 1.7 : F32)
+    case None{}:
+      3.7
+
+def G.ground(+w: +List<W.Mc>, +x: F32, +z: F32) -> F32:
+  +cx = S.S.origin(x)
+  +cz = S.S.origin(z)
+  +i = (((I.I32.floor(z) - cz) * 80) + (I.I32.floor(x) - cx) : U32)
+  G.ground.at(List.get(&2, U32, W.World.levels(w, cx, cz), U32.to_nat(i)))
+
+# the camera never goes below the ground g (engine/LAWS.bend: ground_stops_fall)
+def G.floor(+v: F32, +g: F32) -> F32:
+  R.max(v, g)
 
 def G.y(+s: St) -> F32:
   St{_, y, _, _, _, _} = s
   y
 
-def G.move(+s: St) -> St:
-  St{+x, _, +z, +yaw, +pitch, +held} = s
-  +fw = (G.on(held, 1) - G.on(held, 4) : F32)
-  +st = (G.on(held, 8) - G.on(held, 2) : F32)
-  +sp = {0.6 : F32}
-  St{(x + sp * (fw * F32.sin(yaw) + st * F32.cos(yaw)) : F32), G.floor(G.rawy(s)),
-    (z + sp * (fw * F32.cos(yaw) - st * F32.sin(yaw)) : F32),
+# one frame of flying, stopped by the ground g: 0.6 blocks per frame,
+# 0.04 rad of turn, 0.03 rad of pitch up to +-1.4
+def G.move(+s: St, +g: F32) -> St:
+  St{_, _, _, +yaw, +pitch, +held} = s
+  St{G.rawx(s), G.floor(G.rawy(s), g), G.rawz(s),
     (yaw + 0.04 * (G.on(held, 128) - G.on(held, 64)) : F32),
     R.clamp((pitch + 0.03 * (G.on(held, 256) - G.on(held, 512)) : F32), (0.0 - 1.4 : F32), 1.4), held}
+
+# one frame in the world w: the ground is the column under where the keys lead
+def G.step(+s: St, +w: +List<W.Mc>) -> St:
+  G.move(s, G.ground(w, G.rawx(s), G.rawz(s)))
 
 def G.held(+s: St) -> U32:
   St{_, _, _, _, _, held} = s
@@ -113,7 +144,7 @@ def G.fly(k: Nat, +s: St) -> St:
     case 0n:
       s
     case 1n+p:
-      G.fly(p, G.move(s))
+      G.fly(p, G.step(s, []))
 
 def G.show(+s: St) -> String:
   St{x, y, z, yaw, pitch, _} = s
@@ -187,7 +218,7 @@ def G.next.go(quit: Bool, window: Window, image: Image, cells: R.Cells, +ws: U32
     case True{}:
       Window.close(window)
     case False{}:
-      G.loop(window, ws, G.move(G.with(s, h)), G.held(s), w, race, lv, pend, lb, ld, ll, (image, cells))
+      G.loop(window, ws, G.step(G.with(s, h), w), G.held(s), w, race, lv, pend, lb, ld, ll, (image, cells))
 
 @unsafe
 def G.next(shown: Window & Image & List<Event>, cells: R.Cells, +ws: U32, +s: St, +w: +List<W.Mc>,
