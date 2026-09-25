@@ -43,17 +43,28 @@ test("every law in LAWS.bend has a proof in PROOF.bend", () => {
 import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
-// The Bend2 claim, on this game: an AI change that lets the camera fly through the
-// hills ("noclip": a fixed floor instead of the ground under the camera) cannot be
-// built. A copy of the engine gets the change; the gate refuses it.
-test("an AI change that lets the camera through the ground is refused by the gate", () => {
+// The Bend2 claim, on this game: an AI change that breaks a movement rule cannot be
+// built. A copy of the engine gets the change; the gate refuses it and names the law.
+function mutated(from: string, to: string): string {
   const dir = mkdtempSync(`${tmpdir()}/bvb-law-`);
   cpSync("engine", `${dir}/engine`, { recursive: true });
   const game = readFileSync(`${dir}/engine/game.bend`, "utf8");
-  const dive = game.replace("G.move(s, G.ground(w, G.rawx(s), G.rawz(s)))", "G.move(s, 2.0)");
-  assert.notEqual(dive, game, "the noclip change did not apply: G.step changed shape");
-  writeFileSync(`${dir}/engine/game.bend`, dive);
+  const changed = game.replace(from, to);
+  assert.notEqual(changed, game, `the change did not apply: ${from} is gone from game.bend`);
+  writeFileSync(`${dir}/engine/game.bend`, changed);
   const { status, out } = runBend([`${dir}/engine/PROOF.bend`]);
   assert.notEqual(status, 0);
+  return out;
+}
+
+// "noclip": a fixed floor instead of the ground under the camera
+test("an AI change that lets the camera through the ground is refused by the gate", () => {
+  const out = mutated("G.move(s, nx, nz, G.ground(w, nx, nz))", "G.move(s, nx, nz, 2.0)");
   assert.match(out, /LAWS\.ground_(stops_fall|keeps_height)/);
+});
+
+// "walk through walls": always go where the keys lead
+test("an AI change that lets the camera walk through walls is refused by the gate", () => {
+  const out = mutated("R.pick(G.wall(s, w), G.x(s), G.rawx(s))", "G.rawx(s)");
+  assert.match(out, /LAWS\.wall_stops_x/);
 });

@@ -59,18 +59,47 @@ law levels_length:
 # --- L4: the camera never goes below the ground under it ---
 # G.step(s, w) is one frame of movement in the world w. G.ground(w, x, z) is the
 # top of the terrain column at (x, z) plus eye height (sea level when that
-# mapchunk isn't loaded). G.rawx/rawy/rawz are where the keys would take the
-# camera before the ground is checked. So: fly into a hill and you stop on it;
-# anywhere above the ground, your height is untouched.
+# mapchunk isn't loaded). G.rawy is the height the keys would take the camera to.
+# The ground that counts is the one under where the camera ends up,
+# (G.x(G.step(s, w)), G.z(G.step(s, w))): at a wall (L5) that is where it was.
+# So: fly into a hill and you stop on it; above the ground, your height is untouched.
 
 law ground_stops_fall:
   for s: G.St
   for w: List<&2, W.Mc>
-  for below: {True{} == F32.is_lt(G.G.rawy(s), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
-  {G.G.y(G.G.step(s, w)) == G.G.ground(w, G.G.rawx(s), G.G.rawz(s)) : F32}
+  for below: {True{} == F32.is_lt(G.G.rawy(s), G.G.ground(w, G.G.x(G.G.step(s, w)), G.G.z(G.G.step(s, w)))) : Bool}
+  {G.G.y(G.G.step(s, w)) == G.G.ground(w, G.G.x(G.G.step(s, w)), G.G.z(G.G.step(s, w))) : F32}
 
 law ground_keeps_height:
   for s: G.St
   for w: List<&2, W.Mc>
-  for above: {False{} == F32.is_lt(G.G.rawy(s), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  for above: {False{} == F32.is_lt(G.G.rawy(s), G.G.ground(w, G.G.x(G.G.step(s, w)), G.G.z(G.G.step(s, w)))) : Bool}
   {G.G.y(G.G.step(s, w)) == G.G.rawy(s) : F32}
+
+# --- L5: walls. A terrain column more than one block above the camera is a wall:
+# walking into it leaves x and z where they were (fly up with E to get over it).
+# Open ground (not a wall) lets the keys move you, so "never move" can't pass. ---
+
+law wall_stops_x:
+  for s: G.St
+  for w: List<&2, W.Mc>
+  for hit: {True{} == F32.is_lt((G.G.y(s) + 1.0 : F32), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  {G.G.x(G.G.step(s, w)) == G.G.x(s) : F32}
+
+law wall_stops_z:
+  for s: G.St
+  for w: List<&2, W.Mc>
+  for hit: {True{} == F32.is_lt((G.G.y(s) + 1.0 : F32), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  {G.G.z(G.G.step(s, w)) == G.G.z(s) : F32}
+
+law open_moves_x:
+  for s: G.St
+  for w: List<&2, W.Mc>
+  for clear: {False{} == F32.is_lt((G.G.y(s) + 1.0 : F32), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  {G.G.x(G.G.step(s, w)) == G.G.rawx(s) : F32}
+
+law open_moves_z:
+  for s: G.St
+  for w: List<&2, W.Mc>
+  for clear: {False{} == F32.is_lt((G.G.y(s) + 1.0 : F32), G.G.ground(w, G.G.rawx(s), G.G.rawz(s))) : Bool}
+  {G.G.z(G.G.step(s, w)) == G.G.rawz(s) : F32}

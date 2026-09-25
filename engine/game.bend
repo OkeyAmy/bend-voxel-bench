@@ -91,17 +91,39 @@ def G.y(+s: St) -> F32:
   St{_, y, _, _, _, _} = s
   y
 
-# one frame of flying, stopped by the ground g: 0.6 blocks per frame,
+def G.x(+s: St) -> F32:
+  St{x, _, _, _, _, _} = s
+  x
+
+def G.z(+s: St) -> F32:
+  St{_, _, z, _, _, _} = s
+  z
+
+# a wall: the column the keys lead to is more than one block above the camera
+# (engine/LAWS.bend: wall_stops_x, wall_stops_z, open_moves_x, open_moves_z)
+def G.wall(+s: St, +w: +List<W.Mc>) -> Bool:
+  (G.y(s) + 1.0 < G.ground(w, G.rawx(s), G.rawz(s)) : F32)
+
+# where the camera ends up this frame: where the keys lead, or where it was at a wall
+def G.nx(+s: St, +w: +List<W.Mc>) -> F32:
+  R.pick(G.wall(s, w), G.x(s), G.rawx(s))
+
+def G.nz(+s: St, +w: +List<W.Mc>) -> F32:
+  R.pick(G.wall(s, w), G.z(s), G.rawz(s))
+
+# one frame of flying to (nx, nz), stopped by the ground g: 0.6 blocks per frame,
 # 0.04 rad of turn, 0.03 rad of pitch up to +-1.4
-def G.move(+s: St, +g: F32) -> St:
+def G.move(+s: St, +nx: F32, +nz: F32, +g: F32) -> St:
   St{_, _, _, +yaw, +pitch, +held} = s
-  St{G.rawx(s), G.floor(G.rawy(s), g), G.rawz(s),
+  St{nx, G.floor(G.rawy(s), g), nz,
     (yaw + 0.04 * (G.on(held, 128) - G.on(held, 64)) : F32),
     R.clamp((pitch + 0.03 * (G.on(held, 256) - G.on(held, 512)) : F32), (0.0 - 1.4 : F32), 1.4), held}
 
-# one frame in the world w: the ground is the column under where the keys lead
+# one frame in the world w: walls stop you, and the ground is the column you end up on
 def G.step(+s: St, +w: +List<W.Mc>) -> St:
-  G.move(s, G.ground(w, G.rawx(s), G.rawz(s)))
+  +nx = G.nx(s, w)
+  +nz = G.nz(s, w)
+  G.move(s, nx, nz, G.ground(w, nx, nz))
 
 def G.held(+s: St) -> U32:
   St{_, _, _, _, _, held} = s
@@ -114,14 +136,6 @@ def G.with(+s: St, +h: U32) -> St:
 def G.cam(+s: St) -> R.Cam:
   St{x, y, z, yaw, pitch, _} = s
   V.V.cam(x, y, z, yaw, pitch, 1280, 720)
-
-def G.x(+s: St) -> F32:
-  St{x, _, _, _, _, _} = s
-  x
-
-def G.z(+s: St) -> F32:
-  St{_, _, z, _, _, _} = s
-  z
 
 # ---- keys-sim: the input code without a window ----
 

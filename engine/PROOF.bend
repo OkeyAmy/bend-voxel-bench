@@ -68,20 +68,44 @@ def Laws.levels_length(bs, as2, hs, el, er):
       {==}
 
 # G.step takes the state apart, so first split s into its six fields; then
-# G.y(G.step(s, w)) computes to pick(rawy < ground, ground, rawy).
-# Rewrite the comparison with the hypothesis, and pick reduces.
+# G.y(G.step(s, w)) computes to pick(rawy < ground, ground, rawy), with the ground
+# under where the camera ends up. Rewrite the comparison with the hypothesis.
 def Laws.ground_stops_fall(s, w, below):
   match s:
     case G.St{x, y, z, yaw, pitch, held}:
-      %below : {R.pick(_, G.G.ground(w, G.G.rawx(G.St{x, y, z, yaw, pitch, held}), G.G.rawz(G.St{x, y, z, yaw, pitch, held})),
-        G.G.rawy(G.St{x, y, z, yaw, pitch, held}))
-        == G.G.ground(w, G.G.rawx(G.St{x, y, z, yaw, pitch, held}), G.G.rawz(G.St{x, y, z, yaw, pitch, held})) : F32}
+      %below : {R.pick(_, G.G.ground(w, G.G.x(G.G.step(G.St{x, y, z, yaw, pitch, held}, w)), G.G.z(G.G.step(G.St{x, y, z, yaw, pitch, held}, w))),
+        G.G.rawy(G.St{x, y, z, yaw, pitch, held})) == G.G.ground(w, G.G.x(G.G.step(G.St{x, y, z, yaw, pitch, held}, w)), G.G.z(G.G.step(G.St{x, y, z, yaw, pitch, held}, w))) : F32}
       {==}
 
 def Laws.ground_keeps_height(s, w, above):
   match s:
     case G.St{x, y, z, yaw, pitch, held}:
-      %above : {R.pick(_, G.G.ground(w, G.G.rawx(G.St{x, y, z, yaw, pitch, held}), G.G.rawz(G.St{x, y, z, yaw, pitch, held})),
-        G.G.rawy(G.St{x, y, z, yaw, pitch, held}))
-        == G.G.rawy(G.St{x, y, z, yaw, pitch, held}) : F32}
+      %above : {R.pick(_, G.G.ground(w, G.G.x(G.G.step(G.St{x, y, z, yaw, pitch, held}, w)), G.G.z(G.G.step(G.St{x, y, z, yaw, pitch, held}, w))),
+        G.G.rawy(G.St{x, y, z, yaw, pitch, held})) == G.G.rawy(G.St{x, y, z, yaw, pitch, held}) : F32}
+      {==}
+
+# Walls: split s, then G.x(G.step(s, w)) computes to pick(wall?, x, rawx).
+# Rewrite the wall test with the hypothesis, and pick reduces.
+def Laws.wall_stops_x(s, w, hit):
+  match s:
+    case G.St{x, y, z, yaw, pitch, held}:
+      %hit : {R.pick(_, x, G.G.rawx(G.St{x, y, z, yaw, pitch, held})) == x : F32}
+      {==}
+
+def Laws.wall_stops_z(s, w, hit):
+  match s:
+    case G.St{x, y, z, yaw, pitch, held}:
+      %hit : {R.pick(_, z, G.G.rawz(G.St{x, y, z, yaw, pitch, held})) == z : F32}
+      {==}
+
+def Laws.open_moves_x(s, w, clear):
+  match s:
+    case G.St{x, y, z, yaw, pitch, held}:
+      %clear : {R.pick(_, x, G.G.rawx(G.St{x, y, z, yaw, pitch, held})) == G.G.rawx(G.St{x, y, z, yaw, pitch, held}) : F32}
+      {==}
+
+def Laws.open_moves_z(s, w, clear):
+  match s:
+    case G.St{x, y, z, yaw, pitch, held}:
+      %clear : {R.pick(_, z, G.G.rawz(G.St{x, y, z, yaw, pitch, held})) == G.G.rawz(G.St{x, y, z, yaw, pitch, held}) : F32}
       {==}
